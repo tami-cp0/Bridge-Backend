@@ -46,10 +46,10 @@ export class InvestmentsService {
       throw new BadRequestException('Amount exceeds remaining unfunded amount');
     }
 
-    // 4% goes to the default pool; the remaining net amount determines the investor's share
+    // 4% is held as a default protection pool — it does not reduce the investor's ownership share.
+    // Share is based on gross commitment so all shares sum to 100% and sweeps distribute correctly.
     const defaultPoolContribution = Math.floor(dto.amountCommitted * DEFAULT_POOL_RATE);
-    const netInvestment = dto.amountCommitted - defaultPoolContribution;
-    const sharePercent = (netInvestment / (listing.capitalRequested ?? 1)) * 100;
+    const sharePercent = (dto.amountCommitted / (listing.capitalRequested ?? 1)) * 100;
     const totalReturnDue = Math.round(
       (sharePercent / 100) * (listing.totalReturnAmount ?? 0),
     );
@@ -90,7 +90,7 @@ export class InvestmentsService {
       })
       .returning();
 
-    const newTotalCommitted = (listing.totalCommitted ?? 0) + netInvestment;
+    const newTotalCommitted = (listing.totalCommitted ?? 0) + dto.amountCommitted;
     const newInvestorCount = (listing.investorCount ?? 0) + 1;
 
     await db
