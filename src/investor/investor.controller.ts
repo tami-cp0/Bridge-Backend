@@ -12,6 +12,13 @@ import { InvestorService } from './investor.service';
 import { UpdatePreferencesDto } from './dto/update-preferences.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { InvestorGuard } from '../common/guards/investor.guard';
+import {
+  InvestorSummaryResponseDto,
+  WalletResponseDto,
+  InvestmentResponseDto,
+  InvestorProfileDto,
+} from './dto/investor-responses.dto';
+import { NotificationResponseDto } from '../notifications/dto/notification-response.dto';
 
 @ApiTags('investor')
 @ApiBearerAuth('JWT')
@@ -23,7 +30,7 @@ export class InvestorController {
   @UseGuards(JwtAuthGuard)
   @ApiParam({ name: 'userId', description: 'Investor user UUID' })
   @ApiOperation({ summary: 'Get investor dashboard summary numbers' })
-  @ApiResponse({ status: 200, description: '{ totalCapitalDeployed, totalReturnsReceived, activeDealsCount, defaultPoolContributionBalance } — all in kobo' })
+  @ApiResponse({ status: 200, type: InvestorSummaryResponseDto })
   @ApiResponse({ status: 401, description: 'Unauthorized — missing or invalid token' })
   getSummary(@Param('userId') userId: string) {
     return this.investorService.getSummary(userId);
@@ -33,7 +40,7 @@ export class InvestorController {
   @UseGuards(JwtAuthGuard)
   @ApiParam({ name: 'userId', description: 'Investor user UUID' })
   @ApiOperation({ summary: 'Get last 5 platform activity events for the investor' })
-  @ApiResponse({ status: 200, description: 'Array of up to 5 recent notification objects' })
+  @ApiResponse({ status: 200, type: NotificationResponseDto, isArray: true })
   @ApiResponse({ status: 401, description: 'Unauthorized — missing or invalid token' })
   getActivity(@Param('userId') userId: string) {
     return this.investorService.getActivity(userId);
@@ -44,7 +51,7 @@ export class InvestorController {
   @ApiParam({ name: 'userId', description: 'Investor user UUID' })
   @ApiQuery({ name: 'status', required: false, enum: ['active', 'completed', 'defaulted'], description: 'Filter by deal status. Omit to return all deals.' })
   @ApiOperation({ summary: 'Get investor deals, optionally filtered by status' })
-  @ApiResponse({ status: 200, description: 'Array of investment records' })
+  @ApiResponse({ status: 200, type: InvestmentResponseDto, isArray: true })
   @ApiResponse({ status: 401, description: 'Unauthorized — missing or invalid token' })
   getDeals(@Param('userId') userId: string, @Query('status') status?: string) {
     return this.investorService.getDeals(userId, status);
@@ -54,7 +61,7 @@ export class InvestorController {
   @UseGuards(JwtAuthGuard)
   @ApiParam({ name: 'userId', description: 'Investor user UUID' })
   @ApiOperation({ summary: 'Get Squad wallet balance and default pool balance' })
-  @ApiResponse({ status: 200, description: '{ availableBalance, defaultPoolBalance } — both in kobo. availableBalance is live from Squad.' })
+  @ApiResponse({ status: 200, type: WalletResponseDto })
   @ApiResponse({ status: 401, description: 'Unauthorized — missing or invalid token' })
   @ApiResponse({ status: 404, description: 'Virtual account not found — BVN not yet verified' })
   getWallet(@Param('userId') userId: string) {
@@ -65,7 +72,7 @@ export class InvestorController {
   @UseGuards(InvestorGuard)
   @ApiParam({ name: 'userId', description: 'Investor user UUID' })
   @ApiOperation({ summary: 'Update investor matching preferences — all fields optional' })
-  @ApiResponse({ status: 200, description: 'Updated investor profile with new preferences' })
+  @ApiResponse({ status: 200, type: InvestorProfileDto })
   @ApiResponse({ status: 400, description: 'Validation error — invalid field values' })
   @ApiResponse({ status: 401, description: 'Unauthorized — missing or invalid token' })
   @ApiResponse({ status: 403, description: 'Forbidden — caller is not an investor account' })

@@ -12,6 +12,7 @@ import type { RawBodyRequest } from '@nestjs/common';
 import { Request } from 'express';
 import { SweepService } from './sweep.service';
 import { SquadService } from '../squad/squad.service';
+import { ReceivedResponseDto } from '../common/dto/common-responses.dto';
 
 @ApiTags('webhooks')
 @Controller('webhooks')
@@ -40,7 +41,7 @@ export class SweepController {
       },
     },
   })
-  @ApiResponse({ status: 200, description: '{ received: true }. Triggers sweep: deducts revenue share, distributes to investors, updates Bridge Rating.' })
+  @ApiResponse({ status: 200, type: ReceivedResponseDto })
   @ApiResponse({ status: 401, description: 'Invalid webhook signature — x-squad-encrypted-body header present but HMAC verification failed' })
   async handleSquadWebhook(
     @Req() req: RawBodyRequest<Request>,
