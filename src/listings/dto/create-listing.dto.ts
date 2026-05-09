@@ -2,7 +2,7 @@ import { IsNumber, IsPositive, IsString, IsNotEmpty } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class CreateListingDto {
-  @ApiProperty({ example: 5000000, description: 'Capital requested in kobo. Must not exceed the business tier limit.' })
+  @ApiProperty({ example: 5000000, description: 'Capital requested in kobo. Must not exceed the business tier cap (Tier 1: ₦100k, Tier 2: ₦500k, Tier 3: ₦1M). Businesses can raise any amount up to their cap.' })
   @IsNumber()
   @IsPositive()
   capitalRequested!: number;
