@@ -87,50 +87,6 @@ npm run start:dev
 
 ---
 
-## 6. Test the webhook (payment → sweep) flow
-
-Squad fires a webhook when a business receives a payment. To simulate this locally:
-
-**Expose your local server:**
-```bash
-npx ngrok http 3000
-```
-
-**Register the webhook URL in Squad sandbox dashboard:**
-
-Settings → API & Webhook → Webhook URL:
-```
-https://<your-ngrok-id>.ngrok.io/api/v1/webhooks/squad
-```
-
-**Simulate an incoming payment (replace values with real sandbox VAs):**
-```bash
-curl -X POST https://sandbox-api-d.squadco.com/virtual-account/simulate/payment \
-  -H "Authorization: Bearer <SQUAD_SECRET_KEY>" \
-  -H "Content-Type: application/json" \
-  -d '{ "virtual_account_number": "<business_va_number>", "amount": 500000 }'
-```
-
-This triggers the full sweep: revenue share is deducted, distributions flow to investors, Bridge Rating is recalculated.
-
----
-
-## 7. Deploy to Vercel
-
-```bash
-npm install -g vercel
-vercel
-```
-
-Add all `.env` variables under **Vercel dashboard → Settings → Environment Variables**.
-
-After deploy, update the Squad sandbox webhook URL to:
-```
-https://<your-app>.vercel.app/api/v1/webhooks/squad
-```
-
----
-
 ## Project structure
 
 ```
@@ -149,17 +105,3 @@ src/
 ├── scheduler/      # Cron job for overdue deal detection
 └── db/             # Drizzle ORM schema and Neon connection
 ```
-
----
-
-## Key concepts
-
-| Concept | Detail |
-|---|---|
-| Amounts | All in **kobo** (1 NGN = 100 kobo) |
-| BVN verification | Mocked — any 11-digit number is accepted |
-| CAC verification | Mocked — sets `cacVerified: true` immediately |
-| Squad | Sandbox only — no real money moves |
-| Revenue sweep | On each incoming business payment, `revenueSharePercent` is swept and distributed pro-rata to investors |
-| Bridge Rating | 100-point score across 6 components, recalculated after every sweep |
-| Tranches | Capital disbursed in 3 tranches: tranche 1 on full funding, tranche 2 after 2nd sweep, tranche 3 after 4th sweep |
