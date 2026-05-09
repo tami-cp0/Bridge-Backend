@@ -7,7 +7,7 @@ import {
   HttpCode,
   Logger,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiHeader } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiResponse, ApiHeader, ApiBody } from '@nestjs/swagger';
 import type { RawBodyRequest } from '@nestjs/common';
 import { Request } from 'express';
 import { SweepService } from './sweep.service';
@@ -25,10 +25,23 @@ export class SweepController {
 
   @Post('squad')
   @HttpCode(200)
-  @ApiOperation({ summary: 'Squad payment webhook — processes incoming payments and triggers revenue sweep' })
-  @ApiHeader({ name: 'x-squad-encrypted-body', description: 'HMAC-SHA512 signature for payload verification', required: false })
+  @ApiOperation({ summary: 'Squad payment webhook — processes incoming virtual account payments and triggers revenue sweep' })
+  @ApiHeader({ name: 'x-squad-encrypted-body', description: 'HMAC-SHA512 signature of the raw request body, signed with your Squad secret key', required: false })
+  @ApiBody({
+    description: 'Squad webhook payload. For virtual account payments: contains virtual_account_number, principal_amount, transaction_reference, channel="virtual-account". Signature verification is skipped in sandbox if the header is absent.',
+    schema: {
+      type: 'object',
+      properties: {
+        Event: { type: 'string', example: 'charge_successful' },
+        virtual_account_number: { type: 'string', example: '1234567890' },
+        principal_amount: { type: 'number', example: 500000 },
+        transaction_reference: { type: 'string', example: 'REF20240101123456' },
+        channel: { type: 'string', example: 'virtual-account' },
+      },
+    },
+  })
   @ApiResponse({ status: 200, description: '{ received: true }. Triggers sweep: deducts revenue share, distributes to investors, updates Bridge Rating.' })
-  @ApiResponse({ status: 401, description: 'Invalid webhook signature' })
+  @ApiResponse({ status: 401, description: 'Invalid webhook signature — x-squad-encrypted-body header present but HMAC verification failed' })
   async handleSquadWebhook(
     @Req() req: RawBodyRequest<Request>,
     @Headers('x-squad-encrypted-body') signature: string,

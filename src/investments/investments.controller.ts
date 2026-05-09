@@ -16,9 +16,10 @@ export class InvestmentsController {
   @UseGuards(InvestorGuard)
   @ApiBearerAuth('JWT')
   @ApiOperation({ summary: 'Commit capital to a listing' })
-  @ApiResponse({ status: 201, description: 'Investment created. Triggers Squad transfer from investor to escrow. If listing is now fully funded, releases tranche 1 to the business.' })
-  @ApiResponse({ status: 400, description: 'Below minimum investment, amount exceeds remaining, or listing not active' })
-  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 201, description: 'Investment created. Triggers Squad transfer from investor escrow. If listing is now fully funded, releases tranche 1 to the business.' })
+  @ApiResponse({ status: 400, description: 'Validation error, below minimum investment (₦5,000), amount exceeds remaining unfunded amount, listing not active, or investor virtual account not found' })
+  @ApiResponse({ status: 401, description: 'Unauthorized — missing or invalid token' })
+  @ApiResponse({ status: 403, description: 'Forbidden — caller is not an investor account' })
   @ApiResponse({ status: 404, description: 'Listing not found' })
   @ApiResponse({ status: 502, description: 'Squad transfer failed' })
   createInvestment(
@@ -32,9 +33,9 @@ export class InvestmentsController {
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth('JWT')
   @ApiParam({ name: 'listingId', description: 'Listing UUID' })
-  @ApiOperation({ summary: 'Get all sweep events for a deal, with per-investor distribution if the caller is an investor in that deal' })
-  @ApiResponse({ status: 200, description: 'Array of sweep events. If the caller invested in this listing, each event includes a distribution object with their share.' })
-  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiOperation({ summary: 'Get all sweep events for a deal. If the caller invested in this listing, each event includes their distribution amount.' })
+  @ApiResponse({ status: 200, description: 'Array of sweep events. If caller is an investor in this deal, each event includes a distribution object.' })
+  @ApiResponse({ status: 401, description: 'Unauthorized — missing or invalid token' })
   getSweeps(
     @Param('listingId') listingId: string,
     @CurrentUser() user: JwtPayload,

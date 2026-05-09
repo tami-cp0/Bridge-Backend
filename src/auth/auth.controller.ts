@@ -13,7 +13,8 @@ export class AuthController {
 
   @Post('register/business')
   @ApiOperation({ summary: 'Register a business account' })
-  @ApiResponse({ status: 201, description: 'Returns userId and userType. BVN verification required before login.' })
+  @ApiResponse({ status: 201, description: '{ userId, userType }. BVN verification required before login.' })
+  @ApiResponse({ status: 400, description: 'Validation error — missing or invalid fields' })
   @ApiResponse({ status: 409, description: 'Email or phone already registered' })
   registerBusiness(@Body() dto: RegisterBusinessDto) {
     return this.authService.registerBusiness(dto);
@@ -21,7 +22,8 @@ export class AuthController {
 
   @Post('register/investor')
   @ApiOperation({ summary: 'Register an investor account' })
-  @ApiResponse({ status: 201, description: 'Returns userId and userType. BVN verification required before login.' })
+  @ApiResponse({ status: 201, description: '{ userId, userType }. BVN verification required before login.' })
+  @ApiResponse({ status: 400, description: 'Validation error — missing or invalid fields' })
   @ApiResponse({ status: 409, description: 'Email or phone already registered' })
   registerInvestor(@Body() dto: RegisterInvestorDto) {
     return this.authService.registerInvestor(dto);
@@ -30,8 +32,8 @@ export class AuthController {
   @Post('verify-bvn')
   @HttpCode(200)
   @ApiOperation({ summary: 'Verify BVN and create Squad virtual account' })
-  @ApiResponse({ status: 200, description: 'Returns accessToken, userType, and squadVirtualAccountNumber' })
-  @ApiResponse({ status: 400, description: 'BVN already verified' })
+  @ApiResponse({ status: 200, description: '{ accessToken, userType, squadVirtualAccountNumber }' })
+  @ApiResponse({ status: 400, description: 'Validation error, or BVN already verified for this account' })
   @ApiResponse({ status: 404, description: 'User not found' })
   @ApiResponse({ status: 409, description: 'BVN already registered to another account' })
   verifyBvn(@Body() dto: VerifyBvnDto) {
@@ -41,7 +43,8 @@ export class AuthController {
   @Post('login')
   @HttpCode(200)
   @ApiOperation({ summary: 'Log in and receive a JWT' })
-  @ApiResponse({ status: 200, description: 'Returns accessToken, userType, and squadVirtualAccountNumber' })
+  @ApiResponse({ status: 200, description: '{ accessToken, userType, squadVirtualAccountNumber }' })
+  @ApiResponse({ status: 400, description: 'Validation error — missing or invalid fields' })
   @ApiResponse({ status: 401, description: 'Invalid credentials or BVN not yet verified' })
   login(@Body() dto: LoginDto) {
     return this.authService.login(dto);
