@@ -32,8 +32,9 @@ export class SweepService {
   // Entry point from the webhook controller; only processes successful payment events
   async handleSquadWebhook(payload: Record<string, unknown>) {
     const eventType = payload.event as string;
+    this.logger.log(`Squad webhook received — event: ${eventType}`);
 
-    if (eventType === 'payment_successful' || eventType === 'payment.success') {
+    if (eventType === 'payment_successful' || eventType === 'payment.success' || eventType === 'virtual-account/payment') {
       await this.handlePaymentSuccessful(payload);
     }
   }
