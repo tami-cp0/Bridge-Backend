@@ -1,98 +1,165 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# Bridge — Backend API
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+Revenue-share financing platform for Nigerian SMEs. Businesses raise capital from investors and repay automatically through revenue sweeps.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+**Stack:** NestJS · Drizzle ORM · Neon (PostgreSQL) · Squad sandbox (payments) · OpenAI
 
-## Description
+**Interactive docs:** `http://localhost:3000/docs` once the server is running.
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+---
 
-## Project setup
+## Prerequisites
+
+- Node.js 20+
+- A [Neon](https://neon.tech) account (free tier works)
+- A [Squad sandbox](https://sandbox.squadco.com) account
+- An [OpenAI](https://platform.openai.com) API key
+
+---
+
+## 1. Clone and install
 
 ```bash
-$ npm install
+git clone https://github.com/tami-cp0/Bridge-Backend.git
+cd Bridge-Backend
+npm install
 ```
 
-## Compile and run the project
+---
+
+## 2. Configure environment variables
 
 ```bash
-# development
-$ npm run start
-
-# watch mode
-$ npm run start:dev
-
-# production mode
-$ npm run start:prod
+cp .env.example .env
 ```
 
-## Run tests
+Open `.env` and fill in every value:
+
+| Variable | Where to get it |
+|---|---|
+| `DATABASE_URL` | Neon dashboard → your project → Connection string (pooled) |
+| `JWT_SECRET` | Any random string, 32+ characters |
+| `JWT_EXPIRES_IN` | Token lifetime, e.g. `7d` |
+| `OPENAI_API_KEY` | platform.openai.com → API keys |
+| `SQUAD_SECRET_KEY` | sandbox.squadco.com → Settings → API & Webhook tab |
+| `SQUAD_BASE_URL` | Leave as `https://sandbox-api-d.squadco.com` |
+| `SQUAD_ESCROW_ACCOUNT` | See step 4 |
+| `SWEEP_TOLERANCE_PERCENT` | Leave as `2` |
+| `MAX_DEAL_DURATION_MONTHS` | Leave as `24` |
+
+---
+
+## 3. Push the database schema
 
 ```bash
-# unit tests
-$ npm run test
-
-# e2e tests
-$ npm run test:e2e
-
-# test coverage
-$ npm run test:cov
+npm run db:push
 ```
 
-## Deployment
+This syncs `src/db/schema.ts` directly to your Neon database. No migration files needed.
 
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
-
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
+To inspect your data visually:
 
 ```bash
-$ npm install -g @nestjs/mau
-$ mau deploy
+npm run db:studio
 ```
 
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
+---
 
-## Resources
+## 4. Create the Squad escrow account
 
-Check out a few resources that may come in handy when working with NestJS:
+The platform needs a dedicated virtual account to hold investor funds before distributing them to investors after sweeps.
 
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
+1. Log in to [sandbox.squadco.com](https://sandbox.squadco.com)
+2. Go to **Virtual Accounts** → create a new one (name it anything, e.g. "Bridge Escrow")
+3. Copy the virtual account number Squad generates
+4. Set `SQUAD_ESCROW_ACCOUNT=<that number>` in your `.env`
 
-## Support
+---
 
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
+## 5. Start the server
 
-## Stay in touch
+```bash
+npm run start:dev
+```
 
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
+- API: `http://localhost:3000/api/v1`
+- Swagger UI: `http://localhost:3000/docs`
 
-## License
+---
 
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+## 6. Test the webhook (payment → sweep) flow
+
+Squad fires a webhook when a business receives a payment. To simulate this locally:
+
+**Expose your local server:**
+```bash
+npx ngrok http 3000
+```
+
+**Register the webhook URL in Squad sandbox dashboard:**
+
+Settings → API & Webhook → Webhook URL:
+```
+https://<your-ngrok-id>.ngrok.io/api/v1/webhooks/squad
+```
+
+**Simulate an incoming payment (replace values with real sandbox VAs):**
+```bash
+curl -X POST https://sandbox-api-d.squadco.com/virtual-account/simulate/payment \
+  -H "Authorization: Bearer <SQUAD_SECRET_KEY>" \
+  -H "Content-Type: application/json" \
+  -d '{ "virtual_account_number": "<business_va_number>", "amount": 500000 }'
+```
+
+This triggers the full sweep: revenue share is deducted, distributions flow to investors, Bridge Rating is recalculated.
+
+---
+
+## 7. Deploy to Vercel
+
+```bash
+npm install -g vercel
+vercel
+```
+
+Add all `.env` variables under **Vercel dashboard → Settings → Environment Variables**.
+
+After deploy, update the Squad sandbox webhook URL to:
+```
+https://<your-app>.vercel.app/api/v1/webhooks/squad
+```
+
+---
+
+## Project structure
+
+```
+src/
+├── auth/           # Register business/investor, BVN verify, login
+├── business/       # Business dashboard — profile, payments, sweep summary
+├── investor/       # Investor dashboard — summary, wallet, deals
+├── listings/       # Browse, create, term calculator, AI-generated profile
+├── investments/    # Commit capital, tranche releases on funding
+├── sweep/          # Revenue sweep engine + Squad webhook handler
+├── bridge-rating/  # 6-component credit scoring (100-point scale)
+├── squad/          # Squad payment service wrapper (sandbox)
+├── platform/       # Platform-wide stats for landing page
+├── notifications/  # In-app notification read/unread
+├── verification/   # CAC registration verification
+├── scheduler/      # Cron job for overdue deal detection
+└── db/             # Drizzle ORM schema and Neon connection
+```
+
+---
+
+## Key concepts
+
+| Concept | Detail |
+|---|---|
+| Amounts | All in **kobo** (1 NGN = 100 kobo) |
+| BVN verification | Mocked — any 11-digit number is accepted |
+| CAC verification | Mocked — sets `cacVerified: true` immediately |
+| Squad | Sandbox only — no real money moves |
+| Revenue sweep | On each incoming business payment, `revenueSharePercent` is swept and distributed pro-rata to investors |
+| Bridge Rating | 100-point score across 6 components, recalculated after every sweep |
+| Tranches | Capital disbursed in 3 tranches: tranche 1 on full funding, tranche 2 after 2nd sweep, tranche 3 after 4th sweep |
