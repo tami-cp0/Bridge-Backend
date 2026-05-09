@@ -53,3 +53,5 @@ drizzle/
 # Claude
 .claude/
 CLAUDE.md
+docs/
+test.js
