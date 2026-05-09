@@ -31,10 +31,17 @@ export class SweepService {
 
   // Entry point from the webhook controller; only processes successful payment events
   async handleSquadWebhook(payload: Record<string, unknown>) {
-    const eventType = payload.event as string;
-    this.logger.log(`Squad webhook received — event: ${eventType}`);
+    // Squad uses capital "Event" for card/transfer payments; VA payments have no event type but carry channel: "virtual-account"
+    const eventType = (payload.Event ?? payload.event) as string | undefined;
+    const channel = payload.channel as string | undefined;
+    this.logger.log(`Squad webhook received — Event: ${eventType}, channel: ${channel}`);
 
-    if (eventType === 'payment_successful' || eventType === 'payment.success' || eventType === 'virtual-account/payment') {
+    const isPayment =
+      channel === 'virtual-account' ||
+      !!payload.virtual_account_number ||
+      eventType === 'charge_successful';
+
+    if (isPayment) {
       await this.handlePaymentSuccessful(payload);
     }
   }
@@ -42,10 +49,10 @@ export class SweepService {
   private async handlePaymentSuccessful(payload: Record<string, unknown>) {
     const data = (payload.data ?? payload) as Record<string, unknown>;
     const virtualAccountNumber = data.virtual_account_number as string;
-    const transactionRef = (data.transaction_reference ?? data.reference) as string;
-    const amount = Number(data.amount ?? 0);
+    const transactionRef = (data.transaction_reference ?? data.TransactionRef ?? data.reference) as string;
+    // VA webhooks use principal_amount; fallback covers other payment types
+    const amount = Number(data.principal_amount ?? data.amount ?? 0);
 
-    // Squad sends data in slightly different shapes depending on API version
     if (!virtualAccountNumber || !transactionRef) {
       this.logger.warn('Missing virtualAccountNumber or transactionRef in webhook');
       return;
