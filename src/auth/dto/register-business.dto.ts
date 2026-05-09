@@ -5,8 +5,11 @@ import {
   MinLength,
   IsNumber,
   IsPositive,
+  IsEnum,
+  Length,
 } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
+import { SectorEnum } from '../../common/enums/sector.enum';
 
 export class RegisterBusinessDto {
   @ApiProperty({ example: 'Amara Okonkwo' })
@@ -28,15 +31,20 @@ export class RegisterBusinessDto {
   @MinLength(8)
   password!: string;
 
+  @ApiProperty({ example: '12345678901', description: 'BVN — exactly 11 digits' })
+  @IsString()
+  @IsNotEmpty()
+  @Length(11, 11)
+  bvn!: string;
+
   @ApiProperty({ example: 'Acme Bakery' })
   @IsString()
   @IsNotEmpty()
   businessName!: string;
 
-  @ApiProperty({ example: 'Food & Beverage' })
-  @IsString()
-  @IsNotEmpty()
-  sector!: string;
+  @ApiProperty({ enum: SectorEnum, example: SectorEnum.FOOD_BEVERAGE })
+  @IsEnum(SectorEnum)
+  sector!: SectorEnum;
 
   @ApiProperty({ example: 'Lagos, Nigeria' })
   @IsString()

@@ -1,12 +1,13 @@
-import { IsOptional, IsArray, IsString, IsIn, IsNumber, IsPositive } from 'class-validator';
+import { IsOptional, IsArray, IsString, IsIn, IsNumber, IsPositive, IsEnum } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
+import { SectorEnum } from '../../common/enums/sector.enum';
 
 export class UpdatePreferencesDto {
-  @ApiPropertyOptional({ example: ['Food & Beverage', 'Tech'], type: [String] })
+  @ApiPropertyOptional({ enum: SectorEnum, isArray: true, example: [SectorEnum.FOOD_BEVERAGE, SectorEnum.TECHNOLOGY] })
   @IsOptional()
   @IsArray()
-  @IsString({ each: true })
-  sectorInterests?: string[];
+  @IsEnum(SectorEnum, { each: true })
+  sectorInterests?: SectorEnum[];
 
   @ApiPropertyOptional({ enum: ['conservative', 'balanced', 'growth'] })
   @IsOptional()

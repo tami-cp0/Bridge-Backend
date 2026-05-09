@@ -5,11 +5,12 @@ import {
   MinLength,
   IsOptional,
   IsArray,
-  IsNumber,
-  IsPositive,
   IsIn,
+  IsEnum,
+  Length,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { SectorEnum } from '../../common/enums/sector.enum';
 
 export class RegisterInvestorDto {
   @ApiProperty({ example: 'Chidi Nwosu' })
@@ -31,11 +32,17 @@ export class RegisterInvestorDto {
   @MinLength(8)
   password!: string;
 
-  @ApiPropertyOptional({ example: ['Food & Beverage', 'Tech'], type: [String] })
+  @ApiProperty({ example: '12345678901', description: 'BVN — exactly 11 digits' })
+  @IsString()
+  @IsNotEmpty()
+  @Length(11, 11)
+  bvn!: string;
+
+  @ApiPropertyOptional({ enum: SectorEnum, isArray: true, example: [SectorEnum.FOOD_BEVERAGE, SectorEnum.TECHNOLOGY] })
   @IsOptional()
   @IsArray()
-  @IsString({ each: true })
-  sectorInterests?: string[];
+  @IsEnum(SectorEnum, { each: true })
+  sectorInterests?: SectorEnum[];
 
   @ApiPropertyOptional({ enum: ['conservative', 'balanced', 'growth'] })
   @IsOptional()
@@ -48,16 +55,4 @@ export class RegisterInvestorDto {
   @IsString()
   @IsIn(['short', 'medium', 'flexible'])
   returnTimelinePreference?: string;
-
-  @ApiPropertyOptional({ example: 50000000, description: 'Minimum investment per deal in kobo' })
-  @IsOptional()
-  @IsNumber()
-  @IsPositive()
-  investmentRangeMin?: number;
-
-  @ApiPropertyOptional({ example: 500000000, description: 'Maximum investment per deal in kobo' })
-  @IsOptional()
-  @IsNumber()
-  @IsPositive()
-  investmentRangeMax?: number;
 }

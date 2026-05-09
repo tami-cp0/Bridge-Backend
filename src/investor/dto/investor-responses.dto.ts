@@ -1,4 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { SectorEnum } from '../../common/enums/sector.enum';
 
 export class InvestorProfileDto {
   @ApiProperty({ format: 'uuid' })
@@ -7,8 +8,8 @@ export class InvestorProfileDto {
   @ApiProperty({ format: 'uuid' })
   userId: string;
 
-  @ApiPropertyOptional({ type: [String], example: ['Food & Beverage', 'Tech'] })
-  sectorInterests: string[] | null;
+  @ApiPropertyOptional({ enum: SectorEnum, isArray: true })
+  sectorInterests: SectorEnum[] | null;
 
   @ApiPropertyOptional({ example: 'medium' })
   riskTierPreference: string | null;

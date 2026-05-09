@@ -1,5 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { BridgeRatingResponseDto } from '../../bridge-rating/dto/bridge-rating-response.dto';
+import { SectorEnum } from '../../common/enums/sector.enum';
 
 export class BusinessStatsResponseDto {
   @ApiProperty({ example: 15000000, description: 'Total capital raised across all deals in kobo' })
@@ -41,8 +42,8 @@ export class BusinessProfileDto {
   @ApiProperty({ example: 'Mama Put Kitchen' })
   businessName: string;
 
-  @ApiProperty({ example: 'Food & Beverage' })
-  sector: string;
+  @ApiProperty({ enum: SectorEnum, example: SectorEnum.FOOD_BEVERAGE })
+  sector: SectorEnum;
 
   @ApiProperty({ example: 'Lagos' })
   location: string;

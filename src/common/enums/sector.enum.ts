@@ -1,0 +1,17 @@
+export enum SectorEnum {
+  FOOD_BEVERAGE = 'Food & Beverage',
+  AGRICULTURE = 'Agriculture',
+  TECHNOLOGY = 'Technology',
+  FASHION_BEAUTY = 'Fashion & Beauty',
+  HEALTH_WELLNESS = 'Health & Wellness',
+  EDUCATION = 'Education',
+  TRANSPORT_LOGISTICS = 'Transport & Logistics',
+  RETAIL_TRADE = 'Retail & Trade',
+  MANUFACTURING = 'Manufacturing',
+  REAL_ESTATE = 'Real Estate',
+  FINANCE = 'Finance & Insurance',
+  ENTERTAINMENT = 'Entertainment & Media',
+  CONSTRUCTION = 'Construction',
+  ENERGY = 'Energy',
+  OTHER = 'Other',
+}

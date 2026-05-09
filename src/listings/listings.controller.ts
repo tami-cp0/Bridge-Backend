@@ -24,6 +24,7 @@ import { InvestorGuard } from '../common/guards/investor.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import type { JwtPayload } from '../common/decorators/current-user.decorator';
 import { ListingResponseDto, CalculateTermsResponseDto } from './dto/listing-responses.dto';
+import { SectorEnum } from '../common/enums/sector.enum';
 
 @ApiTags('listings')
 @Controller('listings')
@@ -32,7 +33,7 @@ export class ListingsController {
 
   @Get()
   @ApiOperation({ summary: 'Browse all active listings with optional filters and sorting' })
-  @ApiQuery({ name: 'sector', required: false, type: String, example: 'Food & Beverage' })
+  @ApiQuery({ name: 'sector', required: false, enum: SectorEnum })
   @ApiQuery({ name: 'tier', required: false, type: Number, example: 1 })
   @ApiQuery({ name: 'standing', required: false, enum: ['Seed', 'Rising', 'Established', 'Trusted', 'Elite'] })
   @ApiQuery({ name: 'minReturn', required: false, type: Number, description: 'Minimum total return percent', example: 15 })
