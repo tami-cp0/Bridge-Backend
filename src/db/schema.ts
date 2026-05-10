@@ -182,6 +182,7 @@ export const sweepEvents = pgTable('sweep_events', {
   sweepAmount: bigint('sweep_amount', { mode: 'number' }).notNull(),
   netAmountRetained: bigint('net_amount_retained', { mode: 'number' }).notNull(),
   squadWebhookReference: varchar('squad_webhook_reference', { length: 100 }).notNull(),
+  isManualRepayment: boolean('is_manual_repayment').default(false).notNull(),
   processedAt: timestamp('processed_at').defaultNow().notNull(),
 });
 

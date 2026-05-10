@@ -1,18 +1,23 @@
 import {
   Controller,
   Post,
+  Param,
   Req,
   Headers,
+  UseGuards,
   UnauthorizedException,
   HttpCode,
   Logger,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiHeader, ApiBody } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiResponse, ApiHeader, ApiBody, ApiBearerAuth, ApiParam } from '@nestjs/swagger';
 import type { RawBodyRequest } from '@nestjs/common';
 import { Request } from 'express';
 import { SweepService } from './sweep.service';
 import { SquadService } from '../squad/squad.service';
 import { ReceivedResponseDto } from '../common/dto/common-responses.dto';
+import { BusinessGuard } from '../common/guards/business.guard';
+import { CurrentUser } from '../common/decorators/current-user.decorator';
+import type { JwtPayload } from '../common/decorators/current-user.decorator';
 
 @ApiTags('webhooks')
 @Controller('webhooks')
@@ -23,6 +28,33 @@ export class SweepController {
     private sweepService: SweepService,
     private squadService: SquadService,
   ) {}
+
+  @Post('repay-full/:listingId')
+  @UseGuards(BusinessGuard)
+  @ApiBearerAuth('JWT')
+  @ApiParam({ name: 'listingId', description: 'UUID of the funded listing to repay in full' })
+  @ApiOperation({ summary: 'Pay off the entire remaining balance on a listing in one transfer — releases any locked tranches first, then distributes to investors and closes the deal' })
+  @ApiResponse({
+    status: 201,
+    schema: {
+      type: 'object',
+      properties: {
+        repaid: { type: 'number', example: 3225000, description: 'Amount repaid in kobo' },
+        message: { type: 'string', example: '₦32,250 repaid. Your listing is now completed.' },
+      },
+    },
+  })
+  @ApiResponse({ status: 400, description: 'Listing is not in funded status, or no remaining balance' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Forbidden — caller is not a business account' })
+  @ApiResponse({ status: 404, description: 'Listing not found' })
+  @ApiResponse({ status: 502, description: 'Squad transfer failed' })
+  repayFull(
+    @Param('listingId') listingId: string,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    return this.sweepService.repayFull(listingId, user.userId);
+  }
 
   @Post('squad')
   @HttpCode(200)

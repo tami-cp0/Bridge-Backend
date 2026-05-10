@@ -1,5 +1,5 @@
-import { Controller, Get, Param, UseGuards } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiParam } from '@nestjs/swagger';
+import { Controller, Get, Param, Query, UseGuards } from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiParam, ApiQuery } from '@nestjs/swagger';
 import { BusinessService } from './business.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import {
@@ -80,6 +80,52 @@ export class BusinessController {
   @ApiResponse({ status: 401, description: 'Unauthorized — missing or invalid token' })
   getPayments(@Param('userId') userId: string) {
     return this.businessService.getPayments(userId);
+  }
+
+  @Get(':userId/revenue')
+  @UseGuards(JwtAuthGuard)
+  @ApiParam({ name: 'userId', description: 'Business user UUID' })
+  @ApiQuery({ name: 'period', required: true, enum: ['daily', 'monthly', 'yearly'], description: 'Aggregation period' })
+  @ApiQuery({ name: 'year', required: false, type: Number, description: 'Required for daily and monthly periods', example: 2025 })
+  @ApiQuery({ name: 'month', required: false, type: Number, description: 'Required for daily period (1–12)', example: 5 })
+  @ApiOperation({ summary: 'Get incoming revenue aggregated by day, month, or year — excludes manual full-repayment events' })
+  @ApiResponse({
+    status: 200,
+    schema: {
+      type: 'object',
+      properties: {
+        period: { type: 'string', enum: ['daily', 'monthly', 'yearly'] },
+        year: { type: 'number', example: 2025 },
+        month: { type: 'number', example: 5 },
+        data: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              label: { type: 'string', example: '2025-05-10' },
+              totalIncoming: { type: 'number', example: 1500000, description: 'Total incoming payments in kobo' },
+              totalSwept: { type: 'number', example: 127500, description: 'Amount swept to investors in kobo' },
+              totalRetained: { type: 'number', example: 1372500, description: 'Amount retained by the business in kobo' },
+            },
+          },
+        },
+      },
+    },
+  })
+  @ApiResponse({ status: 400, description: 'year/month required for the selected period' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  getRevenue(
+    @Param('userId') userId: string,
+    @Query('period') period: 'daily' | 'monthly' | 'yearly',
+    @Query('year') year?: string,
+    @Query('month') month?: string,
+  ) {
+    return this.businessService.getRevenue(
+      userId,
+      period,
+      year ? Number(year) : undefined,
+      month ? Number(month) : undefined,
+    );
   }
 
   @Get(':userId/sweep-summary')

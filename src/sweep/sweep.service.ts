@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, BadRequestException, BadGatewayException } from '@nestjs/common';
 import { db } from '../db';
 import {
   users,
@@ -312,6 +312,115 @@ export class SweepService {
         }
       }
     }
+  }
+
+  async repayFull(listingId: string, userId: string) {
+    const [user] = await db
+      .select()
+      .from(users)
+      .where(eq(users.id, userId));
+
+    if (!user?.squadVirtualAccountNumber) {
+      throw new BadRequestException('Virtual account not found — BVN not yet verified');
+    }
+
+    const [bp] = await db
+      .select()
+      .from(businessProfiles)
+      .where(eq(businessProfiles.userId, userId));
+
+    if (!bp) throw new NotFoundException('Business profile not found');
+
+    const [listing] = await db
+      .select()
+      .from(listings)
+      .where(and(eq(listings.id, listingId), eq(listings.businessId, bp.id)));
+
+    if (!listing) throw new NotFoundException('Listing not found');
+    if (listing.status !== 'funded') {
+      throw new BadRequestException('Full repayment is only available for funded listings');
+    }
+
+    const remaining = (listing.totalReturnAmount ?? 0) - (listing.totalSwept ?? 0);
+    if (remaining <= 0) {
+      throw new BadRequestException('This listing has no remaining balance');
+    }
+
+    // Release any tranches that haven't been disbursed yet — the business is paying the full
+    // return amount so they're entitled to all capital that was committed for them
+    const lockedTranches = await db
+      .select()
+      .from(tranches)
+      .where(and(eq(tranches.listingId, listingId), eq(tranches.status, 'locked')));
+
+    for (const tranche of lockedTranches) {
+      const ref = `tranche${tranche.trancheNumber}-early-${uuidv4()}`;
+      try {
+        await this.squadService.transferBetweenVirtualAccounts(
+          PLATFORM_ESCROW_ACCOUNT,
+          user.squadVirtualAccountNumber!,
+          tranche.amount,
+          ref,
+        );
+        await db
+          .update(tranches)
+          .set({ status: 'released', releasedAt: new Date(), squadTransferReference: ref })
+          .where(eq(tranches.id, tranche.id));
+
+        await db.insert(notifications).values({
+          userId: bp.userId,
+          title: `Tranche ${tranche.trancheNumber} released`,
+          body: `₦${(tranche.amount / 100).toLocaleString()} disbursed ahead of full repayment.`,
+        });
+      } catch (err) {
+        this.logger.error(`Early tranche release failed: ${err}`);
+      }
+    }
+
+    // Collect the full remaining balance from the business
+    const repayRef = `manual-repay-${uuidv4()}`;
+    try {
+      await this.squadService.transferBetweenVirtualAccounts(
+        user.squadVirtualAccountNumber!,
+        PLATFORM_ESCROW_ACCOUNT,
+        remaining,
+        repayRef,
+      );
+    } catch (err) {
+      this.logger.error(`Full repayment transfer failed: ${err}`);
+      throw new BadGatewayException('Repayment transfer failed');
+    }
+
+    const [sweepEvent] = await db
+      .insert(sweepEvents)
+      .values({
+        listingId,
+        incomingPaymentAmount: remaining,
+        sweepPercent: '100.00',
+        sweepAmount: remaining,
+        netAmountRetained: 0,
+        squadWebhookReference: repayRef,
+        isManualRepayment: true,
+        processedAt: new Date(),
+      })
+      .returning();
+
+    await db
+      .update(listings)
+      .set({ totalSwept: listing.totalReturnAmount, updatedAt: new Date() })
+      .where(eq(listings.id, listingId));
+
+    await this.distributeToInvestors(listingId, sweepEvent.id, remaining);
+    await this.closeDeal(listingId, bp.id, bp.userId);
+
+    this.triggerRatingRecalculation(bp.id).catch((e) =>
+      this.logger.error(`Rating recalc failed: ${e}`),
+    );
+
+    return {
+      repaid: remaining,
+      message: `₦${(remaining / 100).toLocaleString()} repaid. Your listing is now completed.`,
+    };
   }
 
   private async triggerRatingRecalculation(businessId: string) {

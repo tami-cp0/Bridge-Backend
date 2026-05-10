@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { db } from '../db';
 import {
@@ -9,7 +9,7 @@ import {
   sweepEvents,
   notifications,
 } from '../db/schema';
-import { eq, and, or, inArray, desc } from 'drizzle-orm';
+import { eq, and, or, inArray, desc, ne } from 'drizzle-orm';
 
 @Injectable()
 export class BusinessService {
@@ -137,6 +137,83 @@ export class BusinessService {
       .where(eq(sweepEvents.listingId, activeListing.id))
       .orderBy(desc(sweepEvents.processedAt))
       .limit(10);
+  }
+
+  async getRevenue(
+    userId: string,
+    period: 'daily' | 'monthly' | 'yearly',
+    year?: number,
+    month?: number,
+  ) {
+    const [bp] = await db
+      .select({ id: businessProfiles.id })
+      .from(businessProfiles)
+      .where(eq(businessProfiles.userId, userId));
+
+    if (!bp) throw new NotFoundException('Business profile not found');
+
+    if (period === 'daily' && (!year || !month)) {
+      throw new BadRequestException('year and month are required for daily period');
+    }
+    if (period === 'monthly' && !year) {
+      throw new BadRequestException('year is required for monthly period');
+    }
+
+    const allListings = await db
+      .select({ id: listings.id })
+      .from(listings)
+      .where(eq(listings.businessId, bp.id));
+
+    if (!allListings.length) return { period, data: [] };
+
+    const listingIds = allListings.map((l) => l.id);
+
+    const events = await db
+      .select({
+        incomingPaymentAmount: sweepEvents.incomingPaymentAmount,
+        sweepAmount: sweepEvents.sweepAmount,
+        netAmountRetained: sweepEvents.netAmountRetained,
+        processedAt: sweepEvents.processedAt,
+      })
+      .from(sweepEvents)
+      .where(
+        and(
+          inArray(sweepEvents.listingId, listingIds),
+          ne(sweepEvents.isManualRepayment, true),
+        ),
+      );
+
+    // Group events into time buckets using local ISO strings
+    const buckets = new Map<string, { totalIncoming: number; totalSwept: number; totalRetained: number }>();
+
+    for (const e of events) {
+      const d = new Date(e.processedAt!);
+      const y = d.getFullYear();
+      const m = d.getMonth() + 1;
+      const day = d.getDate();
+
+      if (period === 'daily' && (y !== year || m !== month)) continue;
+      if (period === 'monthly' && y !== year) continue;
+
+      const key =
+        period === 'daily'
+          ? `${y}-${String(m).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+          : period === 'monthly'
+            ? `${y}-${String(m).padStart(2, '0')}`
+            : String(y);
+
+      const existing = buckets.get(key) ?? { totalIncoming: 0, totalSwept: 0, totalRetained: 0 };
+      existing.totalIncoming += e.incomingPaymentAmount ?? 0;
+      existing.totalSwept += e.sweepAmount ?? 0;
+      existing.totalRetained += e.netAmountRetained ?? 0;
+      buckets.set(key, existing);
+    }
+
+    const data = Array.from(buckets.entries())
+      .map(([label, totals]) => ({ label, ...totals }))
+      .sort((a, b) => a.label.localeCompare(b.label));
+
+    return { period, year, month, data };
   }
 
   async getSweepSummary(userId: string) {
