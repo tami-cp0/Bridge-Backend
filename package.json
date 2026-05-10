@@ -18,10 +18,10 @@
     "test:cov": "jest --coverage",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "test:e2e": "jest --config ./test/jest-e2e.json",
-    "db:generate": "drizzle-kit generate",
-    "db:migrate": "drizzle-kit migrate",
-    "db:push": "drizzle-kit push",
-    "db:studio": "drizzle-kit studio"
+    "db:generate": "drizzle-kit generate --config src/config/drizzle.config.ts",
+    "db:migrate": "drizzle-kit migrate --config src/config/drizzle.config.ts",
+    "db:push": "drizzle-kit push --config src/config/drizzle.config.ts",
+    "db:studio": "drizzle-kit studio --config src/config/drizzle.config.ts"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.1.0",
