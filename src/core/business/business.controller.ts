@@ -1,6 +1,10 @@
-﻿import { Controller, Get, Param, Query, UseGuards } from '@nestjs/common';
+﻿import { Controller, Get, Post, Body, Param, Query, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiParam, ApiQuery } from '@nestjs/swagger';
 import { BusinessService } from './business.service';
+import { ConnectBankDto } from './dto/connect-bank.dto';
+import { BusinessGuard } from '../../common/guards/business.guard';
+import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import type { JwtPayload } from '../../common/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import {
   BusinessProfileFullResponseDto,
@@ -17,6 +21,28 @@ import { SweepEventResponseDto } from '../listings/dto/listing-responses.dto';
 @Controller('business')
 export class BusinessController {
   constructor(private businessService: BusinessService) {}
+
+  @Post('connect-bank')
+  @UseGuards(BusinessGuard)
+  @ApiOperation({ summary: 'Connect business bank account via Mono — exchanges Mono Connect code, fetches average monthly inflow, and stores it against the profile' })
+  @ApiResponse({
+    status: 201,
+    schema: {
+      type: 'object',
+      properties: {
+        connected: { type: 'boolean', example: true },
+        averageMonthlyInflow: { type: 'number', example: 2500000, description: 'Average monthly inflow in kobo' },
+      },
+    },
+  })
+  @ApiResponse({ status: 400, description: 'Invalid or expired Mono Connect code' })
+  @ApiResponse({ status: 401, description: 'Unauthorized — missing or invalid token' })
+  @ApiResponse({ status: 403, description: 'Forbidden — caller is not a business account' })
+  @ApiResponse({ status: 404, description: 'Business profile not found' })
+  @ApiResponse({ status: 409, description: 'Bank account already connected' })
+  connectBank(@CurrentUser() user: JwtPayload, @Body() dto: ConnectBankDto) {
+    return this.businessService.connectBank(user.userId, dto.code);
+  }
 
   @Get(':userId/profile')
   @UseGuards(JwtAuthGuard)

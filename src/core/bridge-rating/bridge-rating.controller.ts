@@ -19,4 +19,27 @@ export class BridgeRatingController {
   getRating(@Param('businessId') businessId: string) {
     return this.ratingService.getRating(businessId);
   }
+
+  @Get(':businessId/rating/investor')
+  @ApiParam({ name: 'businessId', description: 'Business profile UUID (not the user UUID)' })
+  @ApiOperation({ summary: 'Get investor-facing rating view — tier, standing, and positive signals only' })
+  @ApiResponse({
+    status: 200,
+    schema: {
+      type: 'object',
+      properties: {
+        tier: { type: 'number', example: 1 },
+        standing: { type: 'string', enum: ['Seed', 'Established', 'Elite'], example: 'Established' },
+        signals: {
+          type: 'array',
+          items: { type: 'string' },
+          example: ['CAC verified', 'Fast repayments', 'Consistent payments'],
+        },
+      },
+    },
+  })
+  @ApiResponse({ status: 404, description: 'Business not found' })
+  getInvestorView(@Param('businessId') businessId: string) {
+    return this.ratingService.getInvestorView(businessId);
+  }
 }

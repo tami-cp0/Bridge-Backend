@@ -141,15 +141,14 @@ export class BridgeRatingService {
         });
       }
 
-      if (newStanding === 'Established' && bp.tier === 1) {
+      let targetTier = bp.tier;
+      if (newStanding === 'Established' && (bp.tier ?? 1) === 1) targetTier = 2;
+      if (newStanding === 'Elite' && (bp.tier ?? 1) <= 2) targetTier = 3;
+
+      if (targetTier !== bp.tier) {
         await db
           .update(businessProfiles)
-          .set({ tier: 2, updatedAt: new Date() })
-          .where(eq(businessProfiles.id, businessId));
-      } else if (newStanding === 'Elite' && bp.tier === 2) {
-        await db
-          .update(businessProfiles)
-          .set({ tier: 3, updatedAt: new Date() })
+          .set({ tier: targetTier, updatedAt: new Date() })
           .where(eq(businessProfiles.id, businessId));
       }
     }
@@ -186,6 +185,43 @@ export class BridgeRatingService {
       .from(bridgeRatings)
       .where(eq(bridgeRatings.businessId, businessId));
     return rating;
+  }
+
+  async getInvestorView(businessId: string) {
+    const [bp] = await db
+      .select({ tier: businessProfiles.tier })
+      .from(businessProfiles)
+      .where(eq(businessProfiles.id, businessId));
+
+    if (!bp) return null;
+
+    const [rating] = await db
+      .select()
+      .from(bridgeRatings)
+      .where(eq(bridgeRatings.businessId, businessId));
+
+    const signals: string[] = [];
+
+    if (rating) {
+      const speed = Number(rating.repaymentSpeedScore ?? 0);
+      const consistency = Number(rating.repaymentConsistencyScore ?? 0);
+      const volume = Number(rating.transactionVolumeScore ?? 0);
+      const revenueConsistency = Number(rating.revenueConsistencyScore ?? 0);
+      const cac = Number(rating.cacBonusScore ?? 0);
+
+      if (cac === 5) signals.push('CAC verified');
+      if (speed >= 25) signals.push('Fast repayments');
+      else if (speed >= 18) signals.push('On-time repayments');
+      if (consistency >= 22) signals.push('Consistent payments');
+      if (volume >= 16) signals.push('Active revenue');
+      if (revenueConsistency >= 11) signals.push('Stable revenue');
+    }
+
+    return {
+      tier: bp.tier ?? 1,
+      standing: rating?.standing ?? 'Seed',
+      signals,
+    };
   }
 
   // Max 30 pts â€” compares actual swept amount to what was expected by this point in time

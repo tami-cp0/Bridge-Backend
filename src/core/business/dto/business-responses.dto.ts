@@ -63,6 +63,9 @@ export class BusinessProfileDto {
   @ApiProperty({ example: false })
   cacVerified: boolean;
 
+  @ApiProperty({ example: false, description: 'True once the business has connected a bank account via Mono Connect' })
+  bankConnected: boolean;
+
   @ApiProperty({ example: 1 })
   tier: number;
 

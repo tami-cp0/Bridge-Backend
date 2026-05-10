@@ -2,9 +2,12 @@
 import { db } from '../../db';
 import { businessProfiles, bridgeRatings } from '../../db/schema';
 import { eq } from 'drizzle-orm';
+import { MonoService } from '../mono/mono.service';
 
 @Injectable()
 export class VerificationService {
+  constructor(private monoService: MonoService) {}
+
   async verifyCac(userId: string, cacRegistrationNumber: string) {
     const [bp] = await db
       .select()
@@ -12,6 +15,9 @@ export class VerificationService {
       .where(eq(businessProfiles.userId, userId));
 
     if (!bp) throw new NotFoundException('Business profile not found');
+
+    // Throws BadRequestException if the RC number is not found in the CAC registry
+    await this.monoService.verifyCac(cacRegistrationNumber);
 
     await db
       .update(businessProfiles)

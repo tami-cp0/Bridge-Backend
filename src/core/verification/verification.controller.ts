@@ -15,11 +15,11 @@ export class VerificationController {
 
   @Post('cac')
   @UseGuards(BusinessGuard)
-  @ApiOperation({ summary: 'Submit CAC registration number to unlock the 5-point CAC bonus on Bridge Rating' })
+  @ApiOperation({ summary: 'Verify CAC registration number via Mono — confirms the RC number against the CAC registry and unlocks the 5-point Bridge Rating bonus' })
   @ApiResponse({ status: 201, type: VerifiedResponseDto })
-  @ApiResponse({ status: 400, description: 'Validation error â€” missing or invalid cacRegistrationNumber' })
-  @ApiResponse({ status: 401, description: 'Unauthorized â€” missing or invalid token' })
-  @ApiResponse({ status: 403, description: 'Forbidden â€” caller is not a business account' })
+  @ApiResponse({ status: 400, description: 'CAC registration number could not be verified by the registry' })
+  @ApiResponse({ status: 401, description: 'Unauthorized — missing or invalid token' })
+  @ApiResponse({ status: 403, description: 'Forbidden — caller is not a business account' })
   @ApiResponse({ status: 404, description: 'Business profile not found' })
   verifyCac(
     @CurrentUser() user: JwtPayload,

@@ -19,6 +19,7 @@ import { RegisterBusinessDto } from './dto/register-business.dto';
 import { RegisterInvestorDto } from './dto/register-investor.dto';
 import { LoginDto } from './dto/login.dto';
 import { SquadService } from '../squad/squad.service';
+import { MonoService } from '../mono/mono.service';
 
 @Injectable()
 export class AuthService {
@@ -28,11 +29,13 @@ export class AuthService {
     private jwtService: JwtService,
     private config: ConfigService,
     private squadService: SquadService,
+    private monoService: MonoService,
   ) {}
 
   async registerBusiness(dto: RegisterBusinessDto) {
     await this.checkDuplicateEmailPhone(dto.email, dto.phone);
     await this.checkDuplicateBvn(dto.bvn);
+    await this.monoService.verifyBvn(dto.bvn);
 
     const [passwordHash, bvnHash] = await Promise.all([
       bcrypt.hash(dto.password, this.BCRYPT_ROUNDS),
@@ -91,6 +94,7 @@ export class AuthService {
   async registerInvestor(dto: RegisterInvestorDto) {
     await this.checkDuplicateEmailPhone(dto.email, dto.phone);
     await this.checkDuplicateBvn(dto.bvn);
+    await this.monoService.verifyBvn(dto.bvn);
 
     const [passwordHash, bvnHash] = await Promise.all([
       bcrypt.hash(dto.password, this.BCRYPT_ROUNDS),

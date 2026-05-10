@@ -1,5 +1,6 @@
-﻿import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+﻿import { Injectable, NotFoundException, BadRequestException, ConflictException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { MonoService } from '../mono/mono.service';
 import { db } from '../../db';
 import {
   businessProfiles,
@@ -13,7 +14,10 @@ import { eq, and, or, inArray, desc, ne } from 'drizzle-orm';
 
 @Injectable()
 export class BusinessService {
-  constructor(private config: ConfigService) {}
+  constructor(
+    private config: ConfigService,
+    private monoService: MonoService,
+  ) {}
 
   async getProfile(userId: string) {
     const [result] = await db
@@ -25,6 +29,34 @@ export class BusinessService {
 
     if (!result) throw new NotFoundException('Business profile not found');
     return result;
+  }
+
+  async connectBank(userId: string, code: string) {
+    const [bp] = await db
+      .select({ id: businessProfiles.id, bankConnected: businessProfiles.bankConnected })
+      .from(businessProfiles)
+      .where(eq(businessProfiles.userId, userId));
+
+    if (!bp) throw new NotFoundException('Business profile not found');
+    if (bp.bankConnected) throw new ConflictException('Bank account already connected');
+
+    const accountId = await this.monoService.exchangeCode(code);
+    const { averageMonthlyInflow, historyStartDate } =
+      await this.monoService.getAccountIncome(accountId);
+
+    await db
+      .update(businessProfiles)
+      .set({
+        bankConnected: true,
+        monoAccountId: accountId,
+        monoLinked: true,
+        monoAverageMonthlyInflow: averageMonthlyInflow || null,
+        monoHistoryStartDate: historyStartDate,
+        updatedAt: new Date(),
+      })
+      .where(eq(businessProfiles.userId, userId));
+
+    return { connected: true, averageMonthlyInflow };
   }
 
   async getStats(userId: string) {

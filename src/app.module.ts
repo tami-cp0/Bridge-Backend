@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { ScheduleModule } from '@nestjs/schedule';
 import { SquadModule } from './core/squad/squad.module';
+import { MonoModule } from './core/mono/mono.module';
 import { AuthModule } from './core/auth/auth.module';
 import { VerificationModule } from './core/verification/verification.module';
 import { BusinessModule } from './core/business/business.module';
@@ -19,6 +20,7 @@ import { SchedulerModule } from './core/scheduler/scheduler.module';
     ConfigModule.forRoot({ isGlobal: true }),
     ScheduleModule.forRoot(),
     SquadModule,
+    MonoModule,
     AuthModule,
     VerificationModule,
     BusinessModule,
