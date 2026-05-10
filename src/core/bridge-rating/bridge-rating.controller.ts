@@ -1,5 +1,11 @@
 ﻿import { Controller, Get, Param, UseGuards } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiParam } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiBearerAuth,
+  ApiParam,
+} from '@nestjs/swagger';
 import { BridgeRatingService } from './bridge-rating.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { BridgeRatingResponseDto } from './dto/bridge-rating-response.dto';
@@ -12,7 +18,10 @@ export class BridgeRatingController {
 
   @Get(':businessId/rating')
   @UseGuards(JwtAuthGuard)
-  @ApiParam({ name: 'businessId', description: 'Business profile UUID (not the user UUID)' })
+  @ApiParam({
+    name: 'businessId',
+    description: 'Business profile UUID (not the user UUID)',
+  })
   @ApiOperation({ summary: 'Get Bridge Rating breakdown for a business' })
   @ApiResponse({ status: 200, type: BridgeRatingResponseDto })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
@@ -21,15 +30,25 @@ export class BridgeRatingController {
   }
 
   @Get(':businessId/rating/investor')
-  @ApiParam({ name: 'businessId', description: 'Business profile UUID (not the user UUID)' })
-  @ApiOperation({ summary: 'Get investor-facing rating view — tier, standing, and positive signals only' })
+  @ApiParam({
+    name: 'businessId',
+    description: 'Business profile UUID (not the user UUID)',
+  })
+  @ApiOperation({
+    summary:
+      'Get investor-facing rating view — tier, standing, and positive signals only',
+  })
   @ApiResponse({
     status: 200,
     schema: {
       type: 'object',
       properties: {
         tier: { type: 'number', example: 1 },
-        standing: { type: 'string', enum: ['Seed', 'Established', 'Elite'], example: 'Established' },
+        standing: {
+          type: 'string',
+          enum: ['Seed', 'Established', 'Elite'],
+          example: 'Established',
+        },
         signals: {
           type: 'array',
           items: { type: 'string' },

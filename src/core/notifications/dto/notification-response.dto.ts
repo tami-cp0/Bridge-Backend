@@ -10,7 +10,9 @@ export class NotificationResponseDto {
   @ApiProperty({ example: 'Return received' })
   title: string;
 
-  @ApiProperty({ example: '₦5,000 was distributed to your wallet from a sweep.' })
+  @ApiProperty({
+    example: '₦5,000 was distributed to your wallet from a sweep.',
+  })
   body: string;
 
   @ApiProperty({ example: false })

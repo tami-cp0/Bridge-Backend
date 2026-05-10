@@ -8,9 +8,8 @@ import {
   ratingEvents,
   notifications,
   investments,
-  users,
 } from '../../db/schema';
-import { eq, and, or, gte, desc } from 'drizzle-orm';
+import { eq, and, or } from 'drizzle-orm';
 
 type BridgeStanding = 'Seed' | 'Established' | 'Elite';
 
@@ -88,8 +87,7 @@ export class BridgeRatingService {
 
     const newStanding = scoreToStanding(overallScore);
     const previousScore = Number(currentRating?.overallScore ?? 0);
-    const previousStanding = (currentRating?.standing ??
-      'Seed') as BridgeStanding;
+    const previousStanding = currentRating?.standing ?? 'Seed';
 
     await db
       .update(bridgeRatings)
@@ -271,13 +269,13 @@ export class BridgeRatingService {
     let score = 25;
     const sorted = [...events].sort(
       (a, b) =>
-        new Date(a.processedAt!).getTime() - new Date(b.processedAt!).getTime(),
+        new Date(a.processedAt).getTime() - new Date(b.processedAt).getTime(),
     );
 
     for (let i = 1; i < sorted.length; i++) {
       const gap =
-        (new Date(sorted[i].processedAt!).getTime() -
-          new Date(sorted[i - 1].processedAt!).getTime()) /
+        (new Date(sorted[i].processedAt).getTime() -
+          new Date(sorted[i - 1].processedAt).getTime()) /
         (1000 * 60 * 60 * 24);
       if (gap > 14) score -= 3;
     }
@@ -322,7 +320,7 @@ export class BridgeRatingService {
 
     const weeklyMap = new Map<string, number>();
     for (const e of recent) {
-      const d = new Date(e.processedAt!);
+      const d = new Date(e.processedAt);
       const weekKey = `${d.getFullYear()}-W${Math.ceil(d.getDate() / 7)}`;
       weeklyMap.set(
         weekKey,
@@ -350,13 +348,13 @@ export class BridgeRatingService {
     let score = 5;
     const sorted = [...events].sort(
       (a, b) =>
-        new Date(a.processedAt!).getTime() - new Date(b.processedAt!).getTime(),
+        new Date(a.processedAt).getTime() - new Date(b.processedAt).getTime(),
     );
 
     for (let i = 1; i < sorted.length; i++) {
       const gap =
-        (new Date(sorted[i].processedAt!).getTime() -
-          new Date(sorted[i - 1].processedAt!).getTime()) /
+        (new Date(sorted[i].processedAt).getTime() -
+          new Date(sorted[i - 1].processedAt).getTime()) /
         (1000 * 60 * 60 * 24);
       if (gap > 14) score -= 2;
     }

@@ -32,13 +32,20 @@ export class RegisterInvestorDto {
   @MinLength(8)
   password!: string;
 
-  @ApiProperty({ example: '12345678901', description: 'BVN â€” exactly 11 digits' })
+  @ApiProperty({
+    example: '12345678901',
+    description: 'BVN â€” exactly 11 digits',
+  })
   @IsString()
   @IsNotEmpty()
   @Length(11, 11)
   bvn!: string;
 
-  @ApiPropertyOptional({ enum: SectorEnum, isArray: true, example: [SectorEnum.FOOD_BEVERAGE, SectorEnum.TECHNOLOGY] })
+  @ApiPropertyOptional({
+    enum: SectorEnum,
+    isArray: true,
+    example: [SectorEnum.FOOD_BEVERAGE, SectorEnum.TECHNOLOGY],
+  })
   @IsOptional()
   @IsArray()
   @IsEnum(SectorEnum, { each: true })

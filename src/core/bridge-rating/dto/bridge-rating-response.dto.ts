@@ -25,7 +25,10 @@ export class BridgeRatingResponseDto {
   @ApiProperty({ example: '12.00', description: 'Max 15 pts' })
   revenueConsistencyScore: string;
 
-  @ApiProperty({ example: '5.00', description: 'Max 5 pts — unlocked by CAC verification' })
+  @ApiProperty({
+    example: '5.00',
+    description: 'Max 5 pts — unlocked by CAC verification',
+  })
   cacBonusScore: string;
 
   @ApiProperty({ example: '3.50', description: 'Max 5 pts' })

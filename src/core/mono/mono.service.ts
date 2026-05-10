@@ -27,31 +27,42 @@ export class MonoService {
   async verifyBvn(bvn: string): Promise<void> {
     try {
       await this.client.post('/v2/lookup/bvn/initiate', { bvn });
-    } catch (err: any) {
-      const status = err?.response?.status;
+    } catch (err: unknown) {
+      const status = axios.isAxiosError(err) ? err.response?.status : undefined;
       if (status && status < 500) {
         throw new BadRequestException('BVN verification failed');
       }
-      this.logger.error('Mono BVN verify error', err?.response?.data);
-      throw new InternalServerErrorException('BVN verification service unavailable');
+      const data = axios.isAxiosError(err) ? err.response?.data : undefined;
+      this.logger.error('Mono BVN verify error', data);
+      throw new InternalServerErrorException(
+        'BVN verification service unavailable',
+      );
     }
   }
 
   // Exchanges the Mono Connect code returned by the frontend widget for an account ID.
   async exchangeCode(code: string): Promise<string> {
     try {
-      const res = await this.client.post('/v2/accounts/auth', { code });
+      const res = await this.client.post<{
+        id?: string;
+        data?: { id?: string };
+      }>('/v2/accounts/auth', { code });
       const id = res.data?.id ?? res.data?.data?.id;
       if (!id) throw new Error('No account id in response');
-      return id as string;
-    } catch (err: any) {
+      return id;
+    } catch (err: unknown) {
       if (err instanceof BadRequestException) throw err;
-      const status = err?.response?.status;
+      const status = axios.isAxiosError(err) ? err.response?.status : undefined;
       if (status && status < 500) {
-        throw new BadRequestException('Invalid or expired bank connection code');
+        throw new BadRequestException(
+          'Invalid or expired bank connection code',
+        );
       }
-      this.logger.error('Mono code exchange error', err?.response?.data);
-      throw new InternalServerErrorException('Bank connection service unavailable');
+      const data = axios.isAxiosError(err) ? err.response?.data : undefined;
+      this.logger.error('Mono code exchange error', data);
+      throw new InternalServerErrorException(
+        'Bank connection service unavailable',
+      );
     }
   }
 
@@ -61,7 +72,11 @@ export class MonoService {
     historyStartDate: string;
   }> {
     try {
-      const res = await this.client.get(`/v2/accounts/${accountId}/income`);
+      const res = await this.client.get<{
+        data?: { monthlyAmount?: number; period_start?: string };
+        monthlyAmount?: number;
+        period_start?: string;
+      }>(`/v2/accounts/${accountId}/income`);
       const data = res.data?.data ?? res.data;
 
       // monthlyAmount is already in kobo from Mono; fall back to 0 if unavailable
@@ -72,12 +87,16 @@ export class MonoService {
         data?.period_start ?? new Date().toISOString().split('T')[0];
 
       return { averageMonthlyInflow, historyStartDate };
-    } catch (err: any) {
-      if (err instanceof BadRequestException || err instanceof InternalServerErrorException) {
+    } catch (err: unknown) {
+      if (
+        err instanceof BadRequestException ||
+        err instanceof InternalServerErrorException
+      ) {
         throw err;
       }
       // Income endpoint may not be available for all account types — return zeros gracefully
-      this.logger.warn(`Mono income fetch failed for ${accountId}`, err?.response?.data);
+      const data = axios.isAxiosError(err) ? err.response?.data : undefined;
+      this.logger.warn(`Mono income fetch failed for ${accountId}`, data);
       return {
         averageMonthlyInflow: 0,
         historyStartDate: new Date().toISOString().split('T')[0],
@@ -89,13 +108,18 @@ export class MonoService {
   async verifyCac(rcNumber: string): Promise<void> {
     try {
       await this.client.post('/v3/identity/cac', { rc_number: rcNumber });
-    } catch (err: any) {
-      const status = err?.response?.status;
+    } catch (err: unknown) {
+      const status = axios.isAxiosError(err) ? err.response?.status : undefined;
       if (status && status < 500) {
-        throw new BadRequestException('CAC registration number could not be verified');
+        throw new BadRequestException(
+          'CAC registration number could not be verified',
+        );
       }
-      this.logger.error('Mono CAC verify error', err?.response?.data);
-      throw new InternalServerErrorException('CAC verification service unavailable');
+      const data = axios.isAxiosError(err) ? err.response?.data : undefined;
+      this.logger.error('Mono CAC verify error', data);
+      throw new InternalServerErrorException(
+        'CAC verification service unavailable',
+      );
     }
   }
 }

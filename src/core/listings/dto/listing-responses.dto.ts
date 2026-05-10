@@ -7,10 +7,16 @@ export class ReturnRateBreakdownDto {
   @ApiProperty({ enum: ['Seed', 'Established', 'Elite'] })
   standing: string;
 
-  @ApiProperty({ example: -7, description: 'Reduction applied based on Bridge Rating standing' })
+  @ApiProperty({
+    example: -7,
+    description: 'Reduction applied based on Bridge Rating standing',
+  })
   ratingReduction: number;
 
-  @ApiProperty({ example: 1.5, description: 'Additional percent per month beyond 6-month base horizon' })
+  @ApiProperty({
+    example: 1.5,
+    description: 'Additional percent per month beyond 6-month base horizon',
+  })
   horizonBump: number;
 
   @ApiProperty({ example: 24.5, description: 'Final clamped rate (20–40%)' })
@@ -21,28 +27,52 @@ export class CalculateTermsResponseDto {
   @ApiProperty({ example: 5000000, description: 'Capital requested in kobo' })
   capitalRequested: number;
 
-  @ApiProperty({ example: 24.5, description: 'Total return percent charged to the business' })
+  @ApiProperty({
+    example: 24.5,
+    description: 'Total return percent charged to the business',
+  })
   totalReturnPercent: number;
 
-  @ApiProperty({ example: 6225000, description: 'Total amount the business must repay in kobo' })
+  @ApiProperty({
+    example: 6225000,
+    description: 'Total amount the business must repay in kobo',
+  })
   totalReturnAmount: number;
 
-  @ApiProperty({ example: 8.5, description: 'Percent of each incoming payment swept for repayment' })
+  @ApiProperty({
+    example: 8.5,
+    description: 'Percent of each incoming payment swept for repayment',
+  })
   revenueSharePercent: number;
 
-  @ApiProperty({ example: 9, description: 'Expected months to full repayment at average revenue' })
+  @ApiProperty({
+    example: 9,
+    description: 'Expected months to full repayment at average revenue',
+  })
   targetRepaymentMonths: number;
 
-  @ApiProperty({ example: 85000, description: 'Expected monthly sweep amount at average revenue in kobo' })
+  @ApiProperty({
+    example: 85000,
+    description: 'Expected monthly sweep amount at average revenue in kobo',
+  })
   monthlySweepAtAverage: number;
 
-  @ApiProperty({ example: 2000000, description: 'Tranche 1 amount (40% of capital) in kobo' })
+  @ApiProperty({
+    example: 2000000,
+    description: 'Tranche 1 amount (40% of capital) in kobo',
+  })
   tranche1: number;
 
-  @ApiProperty({ example: 1500000, description: 'Tranche 2 amount (30% of capital) in kobo' })
+  @ApiProperty({
+    example: 1500000,
+    description: 'Tranche 2 amount (30% of capital) in kobo',
+  })
   tranche2: number;
 
-  @ApiProperty({ example: 1500000, description: 'Tranche 3 amount (30% of capital) in kobo' })
+  @ApiProperty({
+    example: 1500000,
+    description: 'Tranche 3 amount (30% of capital) in kobo',
+  })
   tranche3: number;
 
   @ApiProperty({ type: ReturnRateBreakdownDto })
@@ -109,10 +139,16 @@ export class ListingResponseDto {
   @ApiProperty({ enum: ['active', 'funded', 'completed', 'defaulted'] })
   status: string;
 
-  @ApiProperty({ example: 3000000, description: 'Total investor capital committed so far in kobo' })
+  @ApiProperty({
+    example: 3000000,
+    description: 'Total investor capital committed so far in kobo',
+  })
   totalCommitted: number;
 
-  @ApiProperty({ example: 500000, description: 'Total amount swept so far in kobo' })
+  @ApiProperty({
+    example: 500000,
+    description: 'Total amount swept so far in kobo',
+  })
   totalSwept: number;
 
   @ApiProperty({ example: 3 })
@@ -132,7 +168,10 @@ export class SweepEventResponseDto {
   @ApiProperty({ format: 'uuid' })
   listingId: string;
 
-  @ApiProperty({ example: 1000000, description: 'Full incoming payment in kobo' })
+  @ApiProperty({
+    example: 1000000,
+    description: 'Full incoming payment in kobo',
+  })
   incomingPaymentAmount: number;
 
   @ApiProperty({ example: '8.50' })
@@ -141,7 +180,10 @@ export class SweepEventResponseDto {
   @ApiProperty({ example: 85000, description: 'Amount swept in kobo' })
   sweepAmount: number;
 
-  @ApiProperty({ example: 915000, description: 'Amount retained by business in kobo' })
+  @ApiProperty({
+    example: 915000,
+    description: 'Amount retained by business in kobo',
+  })
   netAmountRetained: number;
 
   @ApiProperty()

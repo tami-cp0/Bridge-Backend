@@ -11,7 +11,10 @@ export class SweepDistributionDto {
   @ApiProperty({ format: 'uuid' })
   investmentId: string;
 
-  @ApiProperty({ example: 8500, description: 'Amount distributed to this investor in kobo' })
+  @ApiProperty({
+    example: 8500,
+    description: 'Amount distributed to this investor in kobo',
+  })
   amountDistributed: number;
 
   @ApiPropertyOptional()
@@ -22,6 +25,10 @@ export class SweepDistributionDto {
 }
 
 export class SweepEventWithDistributionDto extends SweepEventResponseDto {
-  @ApiPropertyOptional({ type: SweepDistributionDto, nullable: true, description: 'Present only when the caller is an investor in this deal' })
+  @ApiPropertyOptional({
+    type: SweepDistributionDto,
+    nullable: true,
+    description: 'Present only when the caller is an investor in this deal',
+  })
   distribution: SweepDistributionDto | null;
 }

@@ -3,6 +3,12 @@ import { ConfigService } from '@nestjs/config';
 import axios, { AxiosInstance } from 'axios';
 import * as crypto from 'crypto';
 
+type SquadApiResponse<T> = { data?: T } & Record<string, unknown>;
+
+function unwrapSquadData<T>(payload: SquadApiResponse<T>): T {
+  return (payload.data ?? payload) as T;
+}
+
 // Thin wrapper around the Squad payment API — all money movement goes through here
 @Injectable()
 export class SquadService {
@@ -29,9 +35,15 @@ export class SquadService {
   ): Promise<{ virtualAccountNumber: string; reference: string }> {
     const nameParts = fullName.trim().split(' ');
     const firstName = nameParts[0];
-    const lastName = nameParts.length > 1 ? nameParts.slice(1).join(' ') : firstName;
+    const lastName =
+      nameParts.length > 1 ? nameParts.slice(1).join(' ') : firstName;
 
-    const response = await this.client.post('/virtual-account', {
+    const response = await this.client.post<
+      SquadApiResponse<{
+        virtual_account_number?: string;
+        customer_identifier?: string;
+      }>
+    >('/virtual-account', {
       first_name: firstName,
       last_name: lastName,
       middle_name: 'N/A',
@@ -45,18 +57,21 @@ export class SquadService {
       beneficiary_account: '0000000000',
     });
 
-    const data = response.data?.data ?? response.data;
+    const data = unwrapSquadData(response.data);
     return {
-      virtualAccountNumber: data.virtual_account_number,
+      virtualAccountNumber: data.virtual_account_number ?? '',
       reference: data.customer_identifier ?? userId,
     };
   }
 
   async getAccountBalance(virtualAccountNumber: string): Promise<number> {
-    const response = await this.client.get(
-      `/virtual-account/customer/${virtualAccountNumber}`,
-    );
-    const data = response.data?.data ?? response.data;
+    const response = await this.client.get<
+      SquadApiResponse<{
+        balance?: number | string;
+        available_balance?: number | string;
+      }>
+    >(`/virtual-account/customer/${virtualAccountNumber}`);
+    const data = unwrapSquadData(response.data);
     return Number(data.balance ?? data.available_balance ?? 0);
   }
 
@@ -67,7 +82,9 @@ export class SquadService {
     reference: string,
     narration: string,
   ): Promise<{ transactionReference: string; status: string }> {
-    const response = await this.client.post('/payout/transfer', {
+    const response = await this.client.post<
+      SquadApiResponse<{ transaction_reference?: string; status?: string }>
+    >('/payout/transfer', {
       transaction_reference: reference,
       amount: String(amount),
       bank_code: bankCode,
@@ -76,10 +93,10 @@ export class SquadService {
       currency_id: 'NGN',
       remark: narration,
     });
-    const data = response.data?.data ?? response.data;
+    const data = unwrapSquadData(response.data);
     return {
-      transactionReference: data.transaction_reference,
-      status: data.status,
+      transactionReference: data.transaction_reference ?? reference,
+      status: data.status ?? 'unknown',
     };
   }
 
@@ -89,13 +106,15 @@ export class SquadService {
     amount: number,
     reference: string,
   ): Promise<{ transactionReference: string; status: string }> {
-    const response = await this.client.post('/virtual-account/transfer', {
+    const response = await this.client.post<
+      SquadApiResponse<{ transaction_reference?: string; status?: string }>
+    >('/virtual-account/transfer', {
       from: fromAccount,
       to: toAccount,
       amount,
       transaction_reference: reference,
     });
-    const data = response.data?.data ?? response.data;
+    const data = unwrapSquadData(response.data);
     return {
       transactionReference: data.transaction_reference ?? reference,
       status: data.status ?? 'success',
@@ -103,7 +122,10 @@ export class SquadService {
   }
 
   // Sandbox only — simulates an incoming payment to trigger the webhook flow without a real bank transfer
-  async simulatePayment(virtualAccountNumber: string, amount: number): Promise<void> {
+  async simulatePayment(
+    virtualAccountNumber: string,
+    amount: number,
+  ): Promise<void> {
     await this.client.post('/virtual-account/simulate/payment', {
       virtual_account_number: virtualAccountNumber,
       amount,

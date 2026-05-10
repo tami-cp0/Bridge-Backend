@@ -6,7 +6,7 @@ import {
   notifications,
   users,
 } from '../../db/schema';
-import { eq, desc, sum } from 'drizzle-orm';
+import { eq, desc } from 'drizzle-orm';
 import { UpdatePreferencesDto } from './dto/update-preferences.dto';
 import { SquadService } from '../squad/squad.service';
 
@@ -33,7 +33,9 @@ export class InvestorService {
       (s, i) => s + (i.totalReturnReceived ?? 0),
       0,
     );
-    const activeDealsCount = allInvestments.filter((i) => i.status === 'active').length;
+    const activeDealsCount = allInvestments.filter(
+      (i) => i.status === 'active',
+    ).length;
     const defaultPoolContributionBalance = allInvestments.reduce(
       (s, i) => s + (i.defaultPoolContribution ?? 0),
       0,
@@ -99,11 +101,16 @@ export class InvestorService {
   async updatePreferences(userId: string, dto: UpdatePreferencesDto) {
     // Only update fields that were explicitly provided â€” ignore undefined ones
     const updates: Partial<typeof investorProfiles.$inferInsert> = {};
-    if (dto.sectorInterests !== undefined) updates.sectorInterests = dto.sectorInterests;
-    if (dto.riskTierPreference !== undefined) updates.riskTierPreference = dto.riskTierPreference;
-    if (dto.returnTimelinePreference !== undefined) updates.returnTimelinePreference = dto.returnTimelinePreference;
-    if (dto.investmentRangeMin !== undefined) updates.investmentRangeMin = dto.investmentRangeMin;
-    if (dto.investmentRangeMax !== undefined) updates.investmentRangeMax = dto.investmentRangeMax;
+    if (dto.sectorInterests !== undefined)
+      updates.sectorInterests = dto.sectorInterests;
+    if (dto.riskTierPreference !== undefined)
+      updates.riskTierPreference = dto.riskTierPreference;
+    if (dto.returnTimelinePreference !== undefined)
+      updates.returnTimelinePreference = dto.returnTimelinePreference;
+    if (dto.investmentRangeMin !== undefined)
+      updates.investmentRangeMin = dto.investmentRangeMin;
+    if (dto.investmentRangeMax !== undefined)
+      updates.investmentRangeMax = dto.investmentRangeMax;
 
     await db
       .update(investorProfiles)

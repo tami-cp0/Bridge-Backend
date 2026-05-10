@@ -1,7 +1,7 @@
 ﻿import { Injectable } from '@nestjs/common';
 import { db } from '../../db';
 import { notifications } from '../../db/schema';
-import { eq, desc } from 'drizzle-orm';
+import { eq, desc, and } from 'drizzle-orm';
 
 @Injectable()
 export class NotificationsService {
@@ -17,7 +17,12 @@ export class NotificationsService {
     await db
       .update(notifications)
       .set({ read: true })
-      .where(eq(notifications.id, notificationId));
+      .where(
+        and(
+          eq(notifications.id, notificationId),
+          eq(notifications.userId, userId),
+        ),
+      );
     return { success: true };
   }
 

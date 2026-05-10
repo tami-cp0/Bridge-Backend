@@ -12,19 +12,37 @@ export class AuthController {
   constructor(private authService: AuthService) {}
 
   @Post('register/business')
-  @ApiOperation({ summary: 'Register a business account — verifies BVN and creates Squad virtual account' })
+  @ApiOperation({
+    summary:
+      'Register a business account — verifies BVN and creates Squad virtual account',
+  })
   @ApiResponse({ status: 201, type: AuthTokenResponseDto })
-  @ApiResponse({ status: 400, description: 'Validation error — missing or invalid fields' })
-  @ApiResponse({ status: 409, description: 'Email, phone, or BVN already registered' })
+  @ApiResponse({
+    status: 400,
+    description: 'Validation error — missing or invalid fields',
+  })
+  @ApiResponse({
+    status: 409,
+    description: 'Email, phone, or BVN already registered',
+  })
   registerBusiness(@Body() dto: RegisterBusinessDto) {
     return this.authService.registerBusiness(dto);
   }
 
   @Post('register/investor')
-  @ApiOperation({ summary: 'Register an investor account — verifies BVN and creates Squad virtual account' })
+  @ApiOperation({
+    summary:
+      'Register an investor account — verifies BVN and creates Squad virtual account',
+  })
   @ApiResponse({ status: 201, type: AuthTokenResponseDto })
-  @ApiResponse({ status: 400, description: 'Validation error — missing or invalid fields' })
-  @ApiResponse({ status: 409, description: 'Email, phone, or BVN already registered' })
+  @ApiResponse({
+    status: 400,
+    description: 'Validation error — missing or invalid fields',
+  })
+  @ApiResponse({
+    status: 409,
+    description: 'Email, phone, or BVN already registered',
+  })
   registerInvestor(@Body() dto: RegisterInvestorDto) {
     return this.authService.registerInvestor(dto);
   }
@@ -33,7 +51,10 @@ export class AuthController {
   @HttpCode(200)
   @ApiOperation({ summary: 'Log in and receive a JWT' })
   @ApiResponse({ status: 200, type: AuthTokenResponseDto })
-  @ApiResponse({ status: 400, description: 'Validation error — missing or invalid fields' })
+  @ApiResponse({
+    status: 400,
+    description: 'Validation error — missing or invalid fields',
+  })
   @ApiResponse({ status: 401, description: 'Invalid credentials' })
   login(@Body() dto: LoginDto) {
     return this.authService.login(dto);

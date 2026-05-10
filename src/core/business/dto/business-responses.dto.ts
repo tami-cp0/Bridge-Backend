@@ -3,10 +3,16 @@ import { BridgeRatingResponseDto } from '../../bridge-rating/dto/bridge-rating-r
 import { SectorEnum } from '../../../common/enums/sector.enum';
 
 export class BusinessStatsResponseDto {
-  @ApiProperty({ example: 15000000, description: 'Total capital raised across all deals in kobo' })
+  @ApiProperty({
+    example: 15000000,
+    description: 'Total capital raised across all deals in kobo',
+  })
   totalCapitalRaised: number;
 
-  @ApiProperty({ example: 3750000, description: 'Total swept to investors across all deals in kobo' })
+  @ApiProperty({
+    example: 3750000,
+    description: 'Total swept to investors across all deals in kobo',
+  })
   totalSweptToInvestors: number;
 
   @ApiProperty({ example: 2 })
@@ -25,10 +31,16 @@ export class SweepSummaryResponseDto {
   @ApiProperty({ example: 500000, description: 'Total swept so far in kobo' })
   totalSwept: number;
 
-  @ApiProperty({ example: 5725000, description: 'Remaining amount owed to investors in kobo' })
+  @ApiProperty({
+    example: 5725000,
+    description: 'Remaining amount owed to investors in kobo',
+  })
   totalRemaining: number;
 
-  @ApiProperty({ example: '8.50', description: 'Current revenue share percentage being swept' })
+  @ApiProperty({
+    example: '8.50',
+    description: 'Current revenue share percentage being swept',
+  })
   currentSweepPercent: string;
 }
 
@@ -63,7 +75,11 @@ export class BusinessProfileDto {
   @ApiProperty({ example: false })
   cacVerified: boolean;
 
-  @ApiProperty({ example: false, description: 'True once the business has connected a bank account via Mono Connect' })
+  @ApiProperty({
+    example: false,
+    description:
+      'True once the business has connected a bank account via Mono Connect',
+  })
   bankConnected: boolean;
 
   @ApiProperty({ example: 1 })

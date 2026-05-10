@@ -18,19 +18,21 @@ import { AiProfileService } from './ai-profile.service';
 import { CreateListingDto } from './dto/create-listing.dto';
 
 // Return rate formula constants
-const BASE_RETURN_RATE = 30;       // percent â€” platform baseline for all businesses
+const BASE_RETURN_RATE = 30; // percent â€” platform baseline for all businesses
 const MIN_RETURN_RATE = 20;
 const MAX_RETURN_RATE = 40;
-const HORIZON_BASE_MONTHS = 12;    // 12-month deals are the anchor â€” longer horizons earn a premium
+const HORIZON_BASE_MONTHS = 12; // 12-month deals are the anchor â€” longer horizons earn a premium
 const HORIZON_RATE_PER_MONTH = 0.5; // percent added per month beyond the base horizon
 
 // Sweep rate bounds
-const SWEEP_RATE_MIN = 5;          // floor â€” extend horizon instead of going below this
-const SWEEP_RATE_WARN = 12;        // block above this; business must request less or extend horizon
+const SWEEP_RATE_MIN = 5; // floor â€” extend horizon instead of going below this
+const SWEEP_RATE_WARN = 12; // block above this; business must request less or extend horizon
 const ALLOWED_MONTHS = [12, 15, 18, 21, 24];
 
+type BridgeStanding = 'Seed' | 'Established' | 'Elite';
+
 // Elite standing earns the most reduction; Seed earns none
-const STANDING_REDUCTIONS: Record<string, number> = {
+const STANDING_REDUCTIONS: Record<BridgeStanding, number> = {
   Seed: 0,
   Established: -5,
   Elite: -10,
@@ -38,22 +40,44 @@ const STANDING_REDUCTIONS: Record<string, number> = {
 
 // Per-tier gates: revenue floor, max capital as a multiple of avg monthly revenue,
 // longest allowed timeline, and minimum investor ticket size
-const TIER_CONFIG: Record<number, {
-  minRevenueKobo: number;
-  revenueMultiple: number;
-  maxTimelineMonths: number;
-  minInvestmentKobo: number;
-}> = {
-  1: { minRevenueKobo: 30_000_000,    revenueMultiple: 1.5, maxTimelineMonths: 18, minInvestmentKobo: 500_000 },
-  2: { minRevenueKobo: 200_000_000,   revenueMultiple: 2.0, maxTimelineMonths: 24, minInvestmentKobo: 2_500_000 },
-  3: { minRevenueKobo: 1_000_000_000, revenueMultiple: 2.0, maxTimelineMonths: 24, minInvestmentKobo: 10_000_000 },
+const TIER_CONFIG: Record<
+  number,
+  {
+    minRevenueKobo: number;
+    revenueMultiple: number;
+    maxTimelineMonths: number;
+    minInvestmentKobo: number;
+  }
+> = {
+  1: {
+    minRevenueKobo: 30_000_000,
+    revenueMultiple: 1.5,
+    maxTimelineMonths: 18,
+    minInvestmentKobo: 500_000,
+  },
+  2: {
+    minRevenueKobo: 200_000_000,
+    revenueMultiple: 2.0,
+    maxTimelineMonths: 24,
+    minInvestmentKobo: 2_500_000,
+  },
+  3: {
+    minRevenueKobo: 1_000_000_000,
+    revenueMultiple: 2.0,
+    maxTimelineMonths: 24,
+    minInvestmentKobo: 10_000_000,
+  },
 };
 
 @Injectable()
 export class ListingsService {
   constructor(private aiProfileService: AiProfileService) {}
 
-  async calculateTerms(userId: string, capitalRequested: number, preferredRepaymentMonths: number) {
+  async calculateTerms(
+    userId: string,
+    capitalRequested: number,
+    preferredRepaymentMonths: number,
+  ) {
     const [bp] = await db
       .select()
       .from(businessProfiles)
@@ -70,7 +94,8 @@ export class ListingsService {
     const tierConfig = TIER_CONFIG[tier as 1 | 2 | 3] ?? TIER_CONFIG[1];
 
     // Prefer verified Mono inflow over self-reported revenue for more accurate terms
-    const avgMonthlyInflow = bp.monoAverageMonthlyInflow ?? bp.averageMonthlyRevenue;
+    const avgMonthlyInflow =
+      bp.monoAverageMonthlyInflow ?? bp.averageMonthlyRevenue;
 
     if (avgMonthlyInflow < tierConfig.minRevenueKobo) {
       const minRevNaira = (tierConfig.minRevenueKobo / 100).toLocaleString();
@@ -85,7 +110,9 @@ export class ListingsService {
       );
     }
 
-    const maxCapitalByMultiple = Math.floor(avgMonthlyInflow * tierConfig.revenueMultiple);
+    const maxCapitalByMultiple = Math.floor(
+      avgMonthlyInflow * tierConfig.revenueMultiple,
+    );
     if (capitalRequested > maxCapitalByMultiple) {
       const maxNaira = (maxCapitalByMultiple / 100).toLocaleString();
       throw new BadRequestException(
@@ -98,18 +125,25 @@ export class ListingsService {
     const ratingReduction = STANDING_REDUCTIONS[standing] ?? 0;
     const ratingAdjustedRate = BASE_RETURN_RATE + ratingReduction;
 
-    const pass1ReturnAmount = Math.round(capitalRequested * (1 + ratingAdjustedRate / 100));
-    const rawSharePercent1 = (pass1ReturnAmount / avgMonthlyInflow / preferredRepaymentMonths) * 100;
+    const pass1ReturnAmount = Math.round(
+      capitalRequested * (1 + ratingAdjustedRate / 100),
+    );
+    const rawSharePercent1 =
+      (pass1ReturnAmount / avgMonthlyInflow / preferredRepaymentMonths) * 100;
     const rawRounded = Math.round(rawSharePercent1 * 10) / 10;
 
     if (rawRounded > SWEEP_RATE_WARN) {
       const maxCapitalKobo = Math.floor(
-        (SWEEP_RATE_WARN / 100 * avgMonthlyInflow * preferredRepaymentMonths) /
-        (1 + ratingAdjustedRate / 100),
+        ((SWEEP_RATE_WARN / 100) *
+          avgMonthlyInflow *
+          preferredRepaymentMonths) /
+          (1 + ratingAdjustedRate / 100),
       );
-      const minMonths = ALLOWED_MONTHS.find(
-        m => (pass1ReturnAmount / avgMonthlyInflow / m) * 100 <= SWEEP_RATE_WARN,
-      ) ?? ALLOWED_MONTHS[ALLOWED_MONTHS.length - 1];
+      const minMonths =
+        ALLOWED_MONTHS.find(
+          (m) =>
+            (pass1ReturnAmount / avgMonthlyInflow / m) * 100 <= SWEEP_RATE_WARN,
+        ) ?? ALLOWED_MONTHS[ALLOWED_MONTHS.length - 1];
       const capitalNaira = (capitalRequested / 100).toLocaleString();
       const maxCapitalNaira = (maxCapitalKobo / 100).toLocaleString();
       throw new BadRequestException(
@@ -117,22 +151,30 @@ export class ListingsService {
       );
     }
 
-    const revenueSharePercent = rawRounded < SWEEP_RATE_MIN ? SWEEP_RATE_MIN : rawRounded;
+    const revenueSharePercent =
+      rawRounded < SWEEP_RATE_MIN ? SWEEP_RATE_MIN : rawRounded;
 
-    const pass1Months = Math.ceil(pass1ReturnAmount / ((avgMonthlyInflow * revenueSharePercent) / 100));
+    const pass1Months = Math.ceil(
+      pass1ReturnAmount / ((avgMonthlyInflow * revenueSharePercent) / 100),
+    );
 
     // Pass 2: apply horizon bump then clamp to platform bounds
-    const horizonBump = Math.max(0, pass1Months - HORIZON_BASE_MONTHS) * HORIZON_RATE_PER_MONTH;
+    const horizonBump =
+      Math.max(0, pass1Months - HORIZON_BASE_MONTHS) * HORIZON_RATE_PER_MONTH;
     const totalReturnPercent = Math.min(
       MAX_RETURN_RATE,
       Math.max(MIN_RETURN_RATE, ratingAdjustedRate + horizonBump),
     );
 
-    const totalReturnAmount = Math.round(capitalRequested * (1 + totalReturnPercent / 100));
+    const totalReturnAmount = Math.round(
+      capitalRequested * (1 + totalReturnPercent / 100),
+    );
     const targetRepaymentMonths = Math.ceil(
       totalReturnAmount / ((avgMonthlyInflow * revenueSharePercent) / 100),
     );
-    const monthlySweepAtAverage = Math.round((avgMonthlyInflow * revenueSharePercent) / 100);
+    const monthlySweepAtAverage = Math.round(
+      (avgMonthlyInflow * revenueSharePercent) / 100,
+    );
 
     // Capital is disbursed in three tranches: 40% on funding, 30% after 2nd sweep, 30% after 4th sweep
     const tranche1 = Math.round(capitalRequested * 0.4);
@@ -182,14 +224,13 @@ export class ListingsService {
       throw new ConflictException('A listing is already active or funded');
     }
 
-    const terms = await this.calculateTerms(userId, dto.capitalRequested, dto.preferredRepaymentMonths);
+    const terms = await this.calculateTerms(
+      userId,
+      dto.capitalRequested,
+      dto.preferredRepaymentMonths,
+    );
 
     const [user] = await db.select().from(users).where(eq(users.id, userId));
-    const [rating] = await db
-      .select()
-      .from(bridgeRatings)
-      .where(eq(bridgeRatings.businessId, bp.id));
-
     // Generate the AI narrative using OpenAI â€” this is what investors read
     const aiProfile = await this.aiProfileService.generateProfile({
       businessName: bp.businessName,
@@ -197,7 +238,8 @@ export class ListingsService {
       location: bp.location,
       yearsInOperation: bp.yearsInOperation,
       selfReportedMonthlyRevenueNaira: bp.averageMonthlyRevenue,
-      monoVerifiedMonthlyInflowNaira: bp.monoAverageMonthlyInflow ?? bp.averageMonthlyRevenue,
+      monoVerifiedMonthlyInflowNaira:
+        bp.monoAverageMonthlyInflow ?? bp.averageMonthlyRevenue,
       monoHistoryStartDate: bp.monoHistoryStartDate,
       bvnVerified: user?.bvnVerified ?? false,
       monoLinked: bp.monoLinked ?? false,
@@ -274,26 +316,48 @@ export class ListingsService {
 
     const conditions: SQL[] = [eq(listings.status, 'active')];
 
-    if (filters.sector) conditions.push(eq(businessProfiles.sector, filters.sector));
-    if (filters.tier !== undefined) conditions.push(eq(businessProfiles.tier, filters.tier));
-    if (filters.standing) conditions.push(eq(bridgeRatings.standing, filters.standing as any));
-    if (filters.minReturn !== undefined) conditions.push(gte(listings.totalReturnPercent, String(filters.minReturn)));
-    if (filters.maxReturn !== undefined) conditions.push(lte(listings.totalReturnPercent, String(filters.maxReturn)));
-    if (filters.minCapital !== undefined) conditions.push(gte(listings.capitalRequested, filters.minCapital));
-    if (filters.maxCapital !== undefined) conditions.push(lte(listings.capitalRequested, filters.maxCapital));
+    if (filters.sector)
+      conditions.push(eq(businessProfiles.sector, filters.sector));
+    if (filters.tier !== undefined)
+      conditions.push(eq(businessProfiles.tier, filters.tier));
+    if (
+      filters.standing === 'Seed' ||
+      filters.standing === 'Established' ||
+      filters.standing === 'Elite'
+    ) {
+      conditions.push(eq(bridgeRatings.standing, filters.standing));
+    }
+    if (filters.minReturn !== undefined)
+      conditions.push(
+        gte(listings.totalReturnPercent, String(filters.minReturn)),
+      );
+    if (filters.maxReturn !== undefined)
+      conditions.push(
+        lte(listings.totalReturnPercent, String(filters.maxReturn)),
+      );
+    if (filters.minCapital !== undefined)
+      conditions.push(gte(listings.capitalRequested, filters.minCapital));
+    if (filters.maxCapital !== undefined)
+      conditions.push(lte(listings.capitalRequested, filters.maxCapital));
 
-    const orderBy = ({
-      highest_return: desc(listings.totalReturnPercent),
-      fastest_repayment: asc(listings.targetRepaymentMonths),
-      newest: desc(listings.createdAt),
-      highest_bridge_rating: desc(bridgeRatings.overallScore),
-    } as Record<string, SQL>)[filters.sort ?? ''] ?? desc(listings.createdAt);
+    const orderBy =
+      (
+        {
+          highest_return: desc(listings.totalReturnPercent),
+          fastest_repayment: asc(listings.targetRepaymentMonths),
+          newest: desc(listings.createdAt),
+          highest_bridge_rating: desc(bridgeRatings.overallScore),
+        } as Record<string, SQL>
+      )[filters.sort ?? ''] ?? desc(listings.createdAt);
 
     return db
       .select()
       .from(listings)
       .leftJoin(businessProfiles, eq(businessProfiles.id, listings.businessId))
-      .leftJoin(bridgeRatings, eq(bridgeRatings.businessId, businessProfiles.id))
+      .leftJoin(
+        bridgeRatings,
+        eq(bridgeRatings.businessId, businessProfiles.id),
+      )
       .where(and(...conditions))
       .orderBy(orderBy)
       .limit(limit)
@@ -310,7 +374,10 @@ export class ListingsService {
       .select()
       .from(listings)
       .leftJoin(businessProfiles, eq(businessProfiles.id, listings.businessId))
-      .leftJoin(bridgeRatings, eq(bridgeRatings.businessId, businessProfiles.id))
+      .leftJoin(
+        bridgeRatings,
+        eq(bridgeRatings.businessId, businessProfiles.id),
+      )
       .where(eq(listings.status, 'active'));
 
     // If the investor hasn't set preferences, return all listings unscored
@@ -322,7 +389,6 @@ export class ListingsService {
     const scored = activeListings.map((l) => {
       let score = 0;
       const bp = l.business_profiles;
-      const br = l.bridge_ratings;
 
       if (profile.sectorInterests?.includes(bp?.sector ?? '')) score += 30;
 
@@ -335,7 +401,8 @@ export class ListingsService {
       if (
         profile.riskTierPreference &&
         tierMapping[profile.riskTierPreference]?.includes(bp?.tier ?? 1)
-      ) score += 25;
+      )
+        score += 25;
 
       const months = l.listings.targetRepaymentMonths ?? 12;
       const timelineMatch: Record<string, boolean> = {
@@ -343,7 +410,11 @@ export class ListingsService {
         medium: months <= 21,
         flexible: true,
       };
-      if (profile.returnTimelinePreference && timelineMatch[profile.returnTimelinePreference]) score += 25;
+      if (
+        profile.returnTimelinePreference &&
+        timelineMatch[profile.returnTimelinePreference]
+      )
+        score += 25;
 
       const cap = l.listings.capitalRequested ?? 0;
       if (
@@ -351,7 +422,8 @@ export class ListingsService {
         profile.investmentRangeMax !== null &&
         cap >= (profile.investmentRangeMin ?? 0) &&
         cap <= (profile.investmentRangeMax ?? Infinity)
-      ) score += 20;
+      )
+        score += 20;
 
       return { ...l, matchScore: score };
     });
@@ -365,7 +437,10 @@ export class ListingsService {
       .select()
       .from(listings)
       .leftJoin(businessProfiles, eq(businessProfiles.id, listings.businessId))
-      .leftJoin(bridgeRatings, eq(bridgeRatings.businessId, businessProfiles.id))
+      .leftJoin(
+        bridgeRatings,
+        eq(bridgeRatings.businessId, businessProfiles.id),
+      )
       .where(eq(listings.id, id));
 
     if (!result) throw new NotFoundException('Listing not found');
@@ -377,5 +452,4 @@ export class ListingsService {
 
     return { ...result, tranches: listingTranches };
   }
-
 }

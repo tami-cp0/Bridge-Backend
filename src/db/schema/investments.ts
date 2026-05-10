@@ -1,4 +1,11 @@
-import { pgTable, uuid, bigint, numeric, varchar, timestamp } from 'drizzle-orm/pg-core';
+import {
+  pgTable,
+  uuid,
+  bigint,
+  numeric,
+  varchar,
+  timestamp,
+} from 'drizzle-orm/pg-core';
 import { listings } from './listings';
 import { users } from './users';
 import { investmentStatusEnum } from './enums';
@@ -13,10 +20,14 @@ export const investments = pgTable('investments', {
     .references(() => users.id)
     .notNull(),
   amountCommitted: bigint('amount_committed', { mode: 'number' }).notNull(),
-  defaultPoolContribution: bigint('default_pool_contribution', { mode: 'number' }).notNull(),
+  defaultPoolContribution: bigint('default_pool_contribution', {
+    mode: 'number',
+  }).notNull(),
   sharePercent: numeric('share_percent', { precision: 8, scale: 4 }).notNull(),
   totalReturnDue: bigint('total_return_due', { mode: 'number' }).notNull(),
-  totalReturnReceived: bigint('total_return_received', { mode: 'number' }).default(0),
+  totalReturnReceived: bigint('total_return_received', {
+    mode: 'number',
+  }).default(0),
   status: investmentStatusEnum('status').default('active'),
   squadTransferReference: varchar('squad_transfer_reference', { length: 100 }),
   createdAt: timestamp('created_at').defaultNow(),

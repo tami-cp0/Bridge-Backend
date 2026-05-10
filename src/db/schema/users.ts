@@ -1,4 +1,10 @@
-import { pgTable, uuid, varchar, boolean, timestamp } from 'drizzle-orm/pg-core';
+import {
+  pgTable,
+  uuid,
+  varchar,
+  boolean,
+  timestamp,
+} from 'drizzle-orm/pg-core';
 import { userTypeEnum } from './enums';
 
 // Shared user identity — both businesses and investors live here
@@ -11,8 +17,12 @@ export const users = pgTable('users', {
   userType: userTypeEnum('user_type').notNull(),
   bvnVerified: boolean('bvn_verified').default(false),
   bvnHash: varchar('bvn_hash', { length: 255 }),
-  squadVirtualAccountNumber: varchar('squad_virtual_account_number', { length: 50 }),
-  squadVirtualAccountReference: varchar('squad_virtual_account_reference', { length: 100 }),
+  squadVirtualAccountNumber: varchar('squad_virtual_account_number', {
+    length: 50,
+  }),
+  squadVirtualAccountReference: varchar('squad_virtual_account_reference', {
+    length: 100,
+  }),
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
 });

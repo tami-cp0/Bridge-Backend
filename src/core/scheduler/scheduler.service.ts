@@ -1,7 +1,12 @@
 ﻿import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { db } from '../../db';
-import { businessProfiles, listings, platformStats, investments } from '../../db/schema';
+import {
+  businessProfiles,
+  listings,
+  platformStats,
+  investments,
+} from '../../db/schema';
 import { eq, and, or, lte, sum, count } from 'drizzle-orm';
 import { BridgeRatingService } from '../bridge-rating/bridge-rating.service';
 
@@ -56,7 +61,9 @@ export class SchedulerService {
         .set({ status: 'defaulted', updatedAt: new Date() })
         .where(eq(listings.id, listing.id));
 
-      this.logger.warn(`Listing ${listing.id} marked defaulted (exceeded ${maxMonths} months)`);
+      this.logger.warn(
+        `Listing ${listing.id} marked defaulted (exceeded ${maxMonths} months)`,
+      );
     }
   }
 
@@ -73,7 +80,12 @@ export class SchedulerService {
     const [totalDeployed] = await db
       .select({ val: sum(investments.amountCommitted) })
       .from(investments)
-      .where(or(eq(investments.status, 'active'), eq(investments.status, 'completed')));
+      .where(
+        or(
+          eq(investments.status, 'active'),
+          eq(investments.status, 'completed'),
+        ),
+      );
 
     await db
       .update(platformStats)

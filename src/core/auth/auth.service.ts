@@ -88,7 +88,11 @@ export class AuthService {
       .where(eq(users.id, user.id));
 
     const accessToken = this.signToken(user.id, 'business', dto.email);
-    return { accessToken, userType: 'business', squadVirtualAccountNumber: squad.virtualAccountNumber };
+    return {
+      accessToken,
+      userType: 'business',
+      squadVirtualAccountNumber: squad.virtualAccountNumber,
+    };
   }
 
   async registerInvestor(dto: RegisterInvestorDto) {
@@ -139,7 +143,11 @@ export class AuthService {
       .where(eq(users.id, user.id));
 
     const accessToken = this.signToken(user.id, 'investor', dto.email);
-    return { accessToken, userType: 'investor', squadVirtualAccountNumber: squad.virtualAccountNumber };
+    return {
+      accessToken,
+      userType: 'investor',
+      squadVirtualAccountNumber: squad.virtualAccountNumber,
+    };
   }
 
   async login(dto: LoginDto) {
@@ -186,8 +194,8 @@ export class AuthService {
     return this.jwtService.sign(
       { sub: userId, userType, email },
       {
-        secret: this.config.get<string>('JWT_SECRET'),
-        expiresIn: (this.config.get<string>('JWT_EXPIRES_IN') ?? '7d') as any,
+        secret: this.config.getOrThrow<string>('JWT_SECRET'),
+        expiresIn: this.config.get<string>('JWT_EXPIRES_IN') ?? '7d',
       },
     );
   }

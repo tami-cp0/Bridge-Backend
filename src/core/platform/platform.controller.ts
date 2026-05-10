@@ -9,7 +9,9 @@ export class PlatformController {
   constructor(private platformService: PlatformService) {}
 
   @Get('stats')
-  @ApiOperation({ summary: 'Get platform-wide statistics for the landing page' })
+  @ApiOperation({
+    summary: 'Get platform-wide statistics for the landing page',
+  })
   @ApiResponse({ status: 200, type: PlatformStatsResponseDto })
   getStats() {
     return this.platformService.getStats();

@@ -1,4 +1,10 @@
-﻿import { Injectable, Logger, NotFoundException, BadRequestException, BadGatewayException } from '@nestjs/common';
+﻿import {
+  Injectable,
+  Logger,
+  NotFoundException,
+  BadRequestException,
+  BadGatewayException,
+} from '@nestjs/common';
 import { db } from '../../db';
 import {
   users,
@@ -17,7 +23,8 @@ import { BridgeRatingService } from '../bridge-rating/bridge-rating.service';
 import { v4 as uuidv4 } from 'uuid';
 
 // Central Squad virtual account that holds swept funds before distributing to investors
-const PLATFORM_ESCROW_ACCOUNT = process.env.SQUAD_ESCROW_ACCOUNT ?? 'ESCROW_ACCOUNT';
+const PLATFORM_ESCROW_ACCOUNT =
+  process.env.SQUAD_ESCROW_ACCOUNT ?? 'ESCROW_ACCOUNT';
 
 @Injectable()
 export class SweepService {
@@ -34,7 +41,9 @@ export class SweepService {
     // Squad uses capital "Event" for card/transfer payments; VA payments have no event type but carry channel: "virtual-account"
     const eventType = (payload.Event ?? payload.event) as string | undefined;
     const channel = payload.channel as string | undefined;
-    this.logger.log(`Squad webhook received â€” Event: ${eventType}, channel: ${channel}`);
+    this.logger.log(
+      `Squad webhook received â€” Event: ${eventType}, channel: ${channel}`,
+    );
 
     const isPayment =
       channel === 'virtual-account' ||
@@ -49,12 +58,16 @@ export class SweepService {
   private async handlePaymentSuccessful(payload: Record<string, unknown>) {
     const data = (payload.data ?? payload) as Record<string, unknown>;
     const virtualAccountNumber = data.virtual_account_number as string;
-    const transactionRef = (data.transaction_reference ?? data.TransactionRef ?? data.reference) as string;
+    const transactionRef = (data.transaction_reference ??
+      data.TransactionRef ??
+      data.reference) as string;
     // VA webhooks use principal_amount; fallback covers other payment types
     const amount = Number(data.principal_amount ?? data.amount ?? 0);
 
     if (!virtualAccountNumber || !transactionRef) {
-      this.logger.warn('Missing virtualAccountNumber or transactionRef in webhook');
+      this.logger.warn(
+        'Missing virtualAccountNumber or transactionRef in webhook',
+      );
       return;
     }
 
@@ -99,7 +112,7 @@ export class SweepService {
     const { sweepAmount: rawSweep, sweepPercent } =
       await this.dynamicSweepService.calculateSweep(activeListing.id, amount);
 
-    const totalSwept = (activeListing.totalSwept ?? 0);
+    const totalSwept = activeListing.totalSwept ?? 0;
     const totalReturnAmount = activeListing.totalReturnAmount ?? 0;
     const remaining = totalReturnAmount - totalSwept;
     // Cap the sweep at what's actually still owed so we never over-collect
@@ -142,7 +155,11 @@ export class SweepService {
       .set({ totalSwept: newTotalSwept, updatedAt: new Date() })
       .where(eq(listings.id, activeListing.id));
 
-    await this.distributeToInvestors(activeListing.id, sweepEvent.id, sweepAmount);
+    await this.distributeToInvestors(
+      activeListing.id,
+      sweepEvent.id,
+      sweepAmount,
+    );
 
     const isComplete = newTotalSwept >= totalReturnAmount;
     if (isComplete) {
@@ -165,7 +182,12 @@ export class SweepService {
     const activeInvestments = await db
       .select()
       .from(investments)
-      .where(and(eq(investments.listingId, listingId), eq(investments.status, 'active')));
+      .where(
+        and(
+          eq(investments.listingId, listingId),
+          eq(investments.status, 'active'),
+        ),
+      );
 
     for (const investment of activeInvestments) {
       const sharePercent = Number(investment.sharePercent ?? 0);
@@ -189,7 +211,9 @@ export class SweepService {
           distRef,
         );
       } catch (err) {
-        this.logger.error(`Distribution to investor ${investment.investorId} failed: ${err}`);
+        this.logger.error(
+          `Distribution to investor ${investment.investorId} failed: ${err}`,
+        );
         continue;
       }
 
@@ -200,8 +224,10 @@ export class SweepService {
         squadTransferReference: distRef,
       });
 
-      const newReceived = (investment.totalReturnReceived ?? 0) + distributionAmount;
-      const isInvestmentComplete = newReceived >= (investment.totalReturnDue ?? 0);
+      const newReceived =
+        (investment.totalReturnReceived ?? 0) + distributionAmount;
+      const isInvestmentComplete =
+        newReceived >= (investment.totalReturnDue ?? 0);
 
       await db
         .update(investments)
@@ -220,14 +246,21 @@ export class SweepService {
     }
   }
 
-  private async closeDeal(listingId: string, businessId: string, businessUserId: string) {
+  private async closeDeal(
+    listingId: string,
+    businessId: string,
+    businessUserId: string,
+  ) {
     await db
       .update(listings)
       .set({ status: 'completed', updatedAt: new Date() })
       .where(eq(listings.id, listingId));
 
     const [bp] = await db
-      .select({ completedRepaymentCount: businessProfiles.completedRepaymentCount, tier: businessProfiles.tier })
+      .select({
+        completedRepaymentCount: businessProfiles.completedRepaymentCount,
+        tier: businessProfiles.tier,
+      })
       .from(businessProfiles)
       .where(eq(businessProfiles.id, businessId));
 
@@ -254,7 +287,10 @@ export class SweepService {
     });
   }
 
-  private async checkTrancheReleases(listingId: string, bp: typeof businessProfiles.$inferSelect) {
+  private async checkTrancheReleases(
+    listingId: string,
+    bp: typeof businessProfiles.$inferSelect,
+  ) {
     const eventCount = await db
       .select({ count: count() })
       .from(sweepEvents)
@@ -293,15 +329,23 @@ export class SweepService {
           try {
             await this.squadService.transferBetweenVirtualAccounts(
               PLATFORM_ESCROW_ACCOUNT,
-              busUser.squadVirtualAccountNumber!,
+              busUser.squadVirtualAccountNumber,
               tranche.amount,
               ref,
             );
-          } catch {}
+          } catch (err) {
+            this.logger.warn(
+              `Tranche ${tc.number} transfer failed for listing ${listingId}: ${String(err)}`,
+            );
+          }
 
           await db
             .update(tranches)
-            .set({ status: 'released', releasedAt: new Date(), squadTransferReference: ref })
+            .set({
+              status: 'released',
+              releasedAt: new Date(),
+              squadTransferReference: ref,
+            })
             .where(eq(tranches.id, tranche.id));
 
           await db.insert(notifications).values({
@@ -315,13 +359,12 @@ export class SweepService {
   }
 
   async repayFull(listingId: string, userId: string) {
-    const [user] = await db
-      .select()
-      .from(users)
-      .where(eq(users.id, userId));
+    const [user] = await db.select().from(users).where(eq(users.id, userId));
 
     if (!user?.squadVirtualAccountNumber) {
-      throw new BadRequestException('Virtual account not found â€” BVN not yet verified');
+      throw new BadRequestException(
+        'Virtual account not found â€” BVN not yet verified',
+      );
     }
 
     const [bp] = await db
@@ -338,10 +381,13 @@ export class SweepService {
 
     if (!listing) throw new NotFoundException('Listing not found');
     if (listing.status !== 'funded') {
-      throw new BadRequestException('Full repayment is only available for funded listings');
+      throw new BadRequestException(
+        'Full repayment is only available for funded listings',
+      );
     }
 
-    const remaining = (listing.totalReturnAmount ?? 0) - (listing.totalSwept ?? 0);
+    const remaining =
+      (listing.totalReturnAmount ?? 0) - (listing.totalSwept ?? 0);
     if (remaining <= 0) {
       throw new BadRequestException('This listing has no remaining balance');
     }
@@ -351,20 +397,26 @@ export class SweepService {
     const lockedTranches = await db
       .select()
       .from(tranches)
-      .where(and(eq(tranches.listingId, listingId), eq(tranches.status, 'locked')));
+      .where(
+        and(eq(tranches.listingId, listingId), eq(tranches.status, 'locked')),
+      );
 
     for (const tranche of lockedTranches) {
       const ref = `tranche${tranche.trancheNumber}-early-${uuidv4()}`;
       try {
         await this.squadService.transferBetweenVirtualAccounts(
           PLATFORM_ESCROW_ACCOUNT,
-          user.squadVirtualAccountNumber!,
+          user.squadVirtualAccountNumber,
           tranche.amount,
           ref,
         );
         await db
           .update(tranches)
-          .set({ status: 'released', releasedAt: new Date(), squadTransferReference: ref })
+          .set({
+            status: 'released',
+            releasedAt: new Date(),
+            squadTransferReference: ref,
+          })
           .where(eq(tranches.id, tranche.id));
 
         await db.insert(notifications).values({
@@ -381,7 +433,7 @@ export class SweepService {
     const repayRef = `manual-repay-${uuidv4()}`;
     try {
       await this.squadService.transferBetweenVirtualAccounts(
-        user.squadVirtualAccountNumber!,
+        user.squadVirtualAccountNumber,
         PLATFORM_ESCROW_ACCOUNT,
         remaining,
         repayRef,

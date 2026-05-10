@@ -3,6 +3,7 @@
   NotFoundException,
   BadRequestException,
   BadGatewayException,
+  Logger,
 } from '@nestjs/common';
 import { db } from '../../db';
 import {
@@ -15,23 +16,26 @@ import {
   sweepEvents,
   sweepDistributions,
 } from '../../db/schema';
-import { eq, and, or } from 'drizzle-orm';
+import { eq, and } from 'drizzle-orm';
 import { SquadService } from '../squad/squad.service';
 import { CreateInvestmentDto } from './dto/create-investment.dto';
 import { v4 as uuidv4 } from 'uuid';
 
 const TIER_MIN_INVESTMENT_KOBO: Record<number, number> = {
-  1: 500_000,     // â‚¦5,000
-  2: 2_500_000,   // â‚¦25,000
-  3: 10_000_000,  // â‚¦100,000
+  1: 500_000, // â‚¦5,000
+  2: 2_500_000, // â‚¦25,000
+  3: 10_000_000, // â‚¦100,000
 };
 
-const DEFAULT_POOL_RATE = 0.04;        // 4% of every investment held as a default protection pool
+const DEFAULT_POOL_RATE = 0.04; // 4% of every investment held as a default protection pool
 // Central Squad account that holds capital between investment and disbursement
-const PLATFORM_ESCROW_ACCOUNT = process.env.SQUAD_ESCROW_ACCOUNT ?? 'ESCROW_ACCOUNT';
+const PLATFORM_ESCROW_ACCOUNT =
+  process.env.SQUAD_ESCROW_ACCOUNT ?? 'ESCROW_ACCOUNT';
 
 @Injectable()
 export class InvestmentsService {
+  private readonly logger = new Logger(InvestmentsService.name);
+
   constructor(private squadService: SquadService) {}
 
   async createInvestment(investorUserId: string, dto: CreateInvestmentDto) {
@@ -41,28 +45,36 @@ export class InvestmentsService {
       .where(eq(listings.id, dto.listingId));
 
     if (!listing) throw new NotFoundException('Listing not found');
-    if (listing.status !== 'active') throw new BadRequestException('Listing is not active');
+    if (listing.status !== 'active')
+      throw new BadRequestException('Listing is not active');
 
     const [bp] = await db
       .select({ tier: businessProfiles.tier })
       .from(businessProfiles)
       .where(eq(businessProfiles.id, listing.businessId));
 
-    const minInvestmentKobo = TIER_MIN_INVESTMENT_KOBO[bp?.tier ?? 1] ?? TIER_MIN_INVESTMENT_KOBO[1];
+    const minInvestmentKobo =
+      TIER_MIN_INVESTMENT_KOBO[bp?.tier ?? 1] ?? TIER_MIN_INVESTMENT_KOBO[1];
     const minInvestmentNaira = (minInvestmentKobo / 100).toLocaleString();
     if (dto.amountCommitted < minInvestmentKobo) {
-      throw new BadRequestException(`Minimum investment for this listing is â‚¦${minInvestmentNaira}`);
+      throw new BadRequestException(
+        `Minimum investment for this listing is â‚¦${minInvestmentNaira}`,
+      );
     }
 
-    const remaining = (listing.capitalRequested ?? 0) - (listing.totalCommitted ?? 0);
+    const remaining =
+      (listing.capitalRequested ?? 0) - (listing.totalCommitted ?? 0);
     if (dto.amountCommitted > remaining) {
       throw new BadRequestException('Amount exceeds remaining unfunded amount');
     }
 
     // 4% is held as a default protection pool â€” it does not reduce the investor's ownership share.
     // Share is based on gross commitment so all shares sum to 100% and sweeps distribute correctly.
-    const defaultPoolContribution = Math.floor(dto.amountCommitted * DEFAULT_POOL_RATE);
-    const sharePercent = (dto.amountCommitted / (listing.capitalRequested ?? 1)) * 100;
+    const defaultPoolContribution = Math.floor(
+      dto.amountCommitted * DEFAULT_POOL_RATE,
+    );
+    const sharePercent =
+      (dto.amountCommitted / (listing.capitalRequested ?? 1)) * 100;
     const totalReturnDue = Math.round(
       (sharePercent / 100) * (listing.totalReturnAmount ?? 0),
     );
@@ -103,7 +115,8 @@ export class InvestmentsService {
       })
       .returning();
 
-    const newTotalCommitted = (listing.totalCommitted ?? 0) + dto.amountCommitted;
+    const newTotalCommitted =
+      (listing.totalCommitted ?? 0) + dto.amountCommitted;
     const newInvestorCount = (listing.investorCount ?? 0) + 1;
 
     await db
@@ -133,7 +146,12 @@ export class InvestmentsService {
     const [investment] = await db
       .select({ id: investments.id })
       .from(investments)
-      .where(and(eq(investments.listingId, listingId), eq(investments.investorId, investorUserId)));
+      .where(
+        and(
+          eq(investments.listingId, listingId),
+          eq(investments.investorId, investorUserId),
+        ),
+      );
 
     const events = await db
       .select()
@@ -154,7 +172,10 @@ export class InvestmentsService {
     }));
   }
 
-  private async fundListing(listingId: string, listing: typeof listings.$inferSelect) {
+  private async fundListing(
+    listingId: string,
+    listing: typeof listings.$inferSelect,
+  ) {
     await db
       .update(listings)
       .set({ status: 'funded', updatedAt: new Date() })
@@ -163,7 +184,9 @@ export class InvestmentsService {
     const [tranche1] = await db
       .select()
       .from(tranches)
-      .where(and(eq(tranches.listingId, listingId), eq(tranches.trancheNumber, 1)));
+      .where(
+        and(eq(tranches.listingId, listingId), eq(tranches.trancheNumber, 1)),
+      );
 
     if (tranche1 && tranche1.status === 'locked') {
       const [bp] = await db
@@ -174,25 +197,33 @@ export class InvestmentsService {
       const [busUser] = await db
         .select({ squadVirtualAccountNumber: users.squadVirtualAccountNumber })
         .from(users)
-        .where(eq(users.id, bp!.userId));
+        .where(eq(users.id, bp.userId));
 
       const trancheRef = `tranche1-${uuidv4()}`;
       try {
         await this.squadService.transferBetweenVirtualAccounts(
           PLATFORM_ESCROW_ACCOUNT,
-          busUser!.squadVirtualAccountNumber!,
+          busUser.squadVirtualAccountNumber!,
           tranche1.amount,
           trancheRef,
         );
-      } catch {}
+      } catch (err) {
+        this.logger.warn(
+          `Tranche 1 transfer failed for listing ${listingId}: ${String(err)}`,
+        );
+      }
 
       await db
         .update(tranches)
-        .set({ status: 'released', releasedAt: new Date(), squadTransferReference: trancheRef })
+        .set({
+          status: 'released',
+          releasedAt: new Date(),
+          squadTransferReference: trancheRef,
+        })
         .where(eq(tranches.id, tranche1.id));
 
       await db.insert(notifications).values({
-        userId: bp!.userId,
+        userId: bp.userId,
         title: 'Listing funded!',
         body: `Your listing has been fully funded. Tranche 1 (â‚¦${tranche1.amount / 100}) has been released to your account.`,
       });

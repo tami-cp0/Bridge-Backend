@@ -1,4 +1,9 @@
-﻿import { Injectable, NotFoundException, BadRequestException, ConflictException } from '@nestjs/common';
+﻿import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+  ConflictException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { MonoService } from '../mono/mono.service';
 import { db } from '../../db';
@@ -25,7 +30,10 @@ export class BusinessService {
       .from(businessProfiles)
       .where(eq(businessProfiles.userId, userId))
       .leftJoin(users, eq(users.id, businessProfiles.userId))
-      .leftJoin(bridgeRatings, eq(bridgeRatings.businessId, businessProfiles.id));
+      .leftJoin(
+        bridgeRatings,
+        eq(bridgeRatings.businessId, businessProfiles.id),
+      );
 
     if (!result) throw new NotFoundException('Business profile not found');
     return result;
@@ -33,12 +41,16 @@ export class BusinessService {
 
   async connectBank(userId: string, code: string) {
     const [bp] = await db
-      .select({ id: businessProfiles.id, bankConnected: businessProfiles.bankConnected })
+      .select({
+        id: businessProfiles.id,
+        bankConnected: businessProfiles.bankConnected,
+      })
       .from(businessProfiles)
       .where(eq(businessProfiles.userId, userId));
 
     if (!bp) throw new NotFoundException('Business profile not found');
-    if (bp.bankConnected) throw new ConflictException('Bank account already connected');
+    if (bp.bankConnected)
+      throw new ConflictException('Bank account already connected');
 
     const accountId = await this.monoService.exchangeCode(code);
     const { averageMonthlyInflow, historyStartDate } =
@@ -89,7 +101,9 @@ export class BusinessService {
       (s, l) => s + (l.totalSwept ?? 0),
       0,
     );
-    const completedDealsCount = allListings.filter((l) => l.status === 'completed').length;
+    const completedDealsCount = allListings.filter(
+      (l) => l.status === 'completed',
+    ).length;
 
     return { totalCapitalRaised, totalSweptToInvestors, completedDealsCount };
   }
@@ -185,7 +199,9 @@ export class BusinessService {
     if (!bp) throw new NotFoundException('Business profile not found');
 
     if (period === 'daily' && (!year || !month)) {
-      throw new BadRequestException('year and month are required for daily period');
+      throw new BadRequestException(
+        'year and month are required for daily period',
+      );
     }
     if (period === 'monthly' && !year) {
       throw new BadRequestException('year is required for monthly period');
@@ -216,10 +232,13 @@ export class BusinessService {
       );
 
     // Group events into time buckets using local ISO strings
-    const buckets = new Map<string, { totalIncoming: number; totalSwept: number; totalRetained: number }>();
+    const buckets = new Map<
+      string,
+      { totalIncoming: number; totalSwept: number; totalRetained: number }
+    >();
 
     for (const e of events) {
-      const d = new Date(e.processedAt!);
+      const d = new Date(e.processedAt);
       const y = d.getFullYear();
       const m = d.getMonth() + 1;
       const day = d.getDate();
@@ -234,7 +253,11 @@ export class BusinessService {
             ? `${y}-${String(m).padStart(2, '0')}`
             : String(y);
 
-      const existing = buckets.get(key) ?? { totalIncoming: 0, totalSwept: 0, totalRetained: 0 };
+      const existing = buckets.get(key) ?? {
+        totalIncoming: 0,
+        totalSwept: 0,
+        totalRetained: 0,
+      };
       existing.totalIncoming += e.incomingPaymentAmount ?? 0;
       existing.totalSwept += e.sweepAmount ?? 0;
       existing.totalRetained += e.netAmountRetained ?? 0;
@@ -270,13 +293,15 @@ export class BusinessService {
         ),
       );
 
-    if (!activeListing) return { totalSwept: 0, totalRemaining: 0, currentSweepPercent: 0 };
+    if (!activeListing)
+      return { totalSwept: 0, totalRemaining: 0, currentSweepPercent: 0 };
 
     return {
       totalSwept: activeListing.totalSwept ?? 0,
-      totalRemaining: (activeListing.totalReturnAmount ?? 0) - (activeListing.totalSwept ?? 0),
+      totalRemaining:
+        (activeListing.totalReturnAmount ?? 0) -
+        (activeListing.totalSwept ?? 0),
       currentSweepPercent: activeListing.revenueSharePercent,
     };
   }
-
 }

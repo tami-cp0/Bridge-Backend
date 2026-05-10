@@ -31,7 +31,10 @@ export class RegisterBusinessDto {
   @MinLength(8)
   password!: string;
 
-  @ApiProperty({ example: '12345678901', description: 'BVN â€” exactly 11 digits' })
+  @ApiProperty({
+    example: '12345678901',
+    description: 'BVN â€” exactly 11 digits',
+  })
   @IsString()
   @IsNotEmpty()
   @Length(11, 11)
@@ -56,12 +59,17 @@ export class RegisterBusinessDto {
   @IsPositive()
   yearsInOperation!: number;
 
-  @ApiProperty({ example: 80000000, description: 'Average monthly revenue in kobo' })
+  @ApiProperty({
+    example: 80000000,
+    description: 'Average monthly revenue in kobo',
+  })
   @IsNumber()
   @IsPositive()
   averageMonthlyRevenue!: number;
 
-  @ApiProperty({ example: 'We supply artisan bread to 12 hotels in Lagos Island.' })
+  @ApiProperty({
+    example: 'We supply artisan bread to 12 hotels in Lagos Island.',
+  })
   @IsString()
   @IsNotEmpty()
   businessDescription!: string;

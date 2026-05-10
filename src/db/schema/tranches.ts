@@ -1,4 +1,12 @@
-import { pgTable, uuid, integer, bigint, text, varchar, timestamp } from 'drizzle-orm/pg-core';
+import {
+  pgTable,
+  uuid,
+  integer,
+  bigint,
+  text,
+  varchar,
+  timestamp,
+} from 'drizzle-orm/pg-core';
 import { listings } from './listings';
 import { trancheStatusEnum } from './enums';
 

@@ -1,4 +1,12 @@
-import { pgTable, uuid, bigint, text, numeric, integer, timestamp } from 'drizzle-orm/pg-core';
+import {
+  pgTable,
+  uuid,
+  bigint,
+  text,
+  numeric,
+  integer,
+  timestamp,
+} from 'drizzle-orm/pg-core';
 import { businessProfiles } from './business-profiles';
 import { listingStatusEnum } from './enums';
 
@@ -11,9 +19,17 @@ export const listings = pgTable('listings', {
   capitalRequested: bigint('capital_requested', { mode: 'number' }).notNull(),
   useOfFunds: text('use_of_funds').notNull(),
   expectedImpact: text('expected_impact').notNull(),
-  revenueSharePercent: numeric('revenue_share_percent', { precision: 5, scale: 2 }).notNull(),
-  totalReturnAmount: bigint('total_return_amount', { mode: 'number' }).notNull(),
-  totalReturnPercent: numeric('total_return_percent', { precision: 5, scale: 2 }).notNull(),
+  revenueSharePercent: numeric('revenue_share_percent', {
+    precision: 5,
+    scale: 2,
+  }).notNull(),
+  totalReturnAmount: bigint('total_return_amount', {
+    mode: 'number',
+  }).notNull(),
+  totalReturnPercent: numeric('total_return_percent', {
+    precision: 5,
+    scale: 2,
+  }).notNull(),
   targetRepaymentMonths: integer('target_repayment_months').notNull(),
   aiProfile: text('ai_profile').notNull(),
   status: listingStatusEnum('status').default('active'),

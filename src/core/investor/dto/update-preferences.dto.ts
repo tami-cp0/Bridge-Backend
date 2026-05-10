@@ -1,9 +1,21 @@
-﻿import { IsOptional, IsArray, IsString, IsIn, IsNumber, IsPositive, IsEnum } from 'class-validator';
+﻿import {
+  IsOptional,
+  IsArray,
+  IsString,
+  IsIn,
+  IsNumber,
+  IsPositive,
+  IsEnum,
+} from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { SectorEnum } from '../../../common/enums/sector.enum';
 
 export class UpdatePreferencesDto {
-  @ApiPropertyOptional({ enum: SectorEnum, isArray: true, example: [SectorEnum.FOOD_BEVERAGE, SectorEnum.TECHNOLOGY] })
+  @ApiPropertyOptional({
+    enum: SectorEnum,
+    isArray: true,
+    example: [SectorEnum.FOOD_BEVERAGE, SectorEnum.TECHNOLOGY],
+  })
   @IsOptional()
   @IsArray()
   @IsEnum(SectorEnum, { each: true })
@@ -21,13 +33,19 @@ export class UpdatePreferencesDto {
   @IsIn(['short', 'medium', 'flexible'])
   returnTimelinePreference?: string;
 
-  @ApiPropertyOptional({ example: 50000000, description: 'Minimum investment per deal in kobo' })
+  @ApiPropertyOptional({
+    example: 50000000,
+    description: 'Minimum investment per deal in kobo',
+  })
   @IsOptional()
   @IsNumber()
   @IsPositive()
   investmentRangeMin?: number;
 
-  @ApiPropertyOptional({ example: 500000000, description: 'Maximum investment per deal in kobo' })
+  @ApiPropertyOptional({
+    example: 500000000,
+    description: 'Maximum investment per deal in kobo',
+  })
   @IsOptional()
   @IsNumber()
   @IsPositive()
