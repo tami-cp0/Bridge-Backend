@@ -1,5 +1,7 @@
-﻿import { Injectable, Logger } from '@nestjs/common';
+﻿import { Inject, Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
+import { AppConfig } from '../../config/config';
+import type { AppConfigType } from '../../config/config.types';
 import { db } from '../../db';
 import {
   businessProfiles,
@@ -14,7 +16,10 @@ import { BridgeRatingService } from '../bridge-rating/bridge-rating.service';
 export class SchedulerService {
   private readonly logger = new Logger(SchedulerService.name);
 
-  constructor(private bridgeRatingService: BridgeRatingService) {}
+  constructor(
+    private bridgeRatingService: BridgeRatingService,
+    @Inject(AppConfig.KEY) private appCfg: AppConfigType,
+  ) {}
 
   // Runs at midnight â€” ensures ratings reflect the latest sweep and CAC data each day
   @Cron(CronExpression.EVERY_DAY_AT_MIDNIGHT)
@@ -41,7 +46,7 @@ export class SchedulerService {
   async checkExpiredListings() {
     this.logger.log('Checking for expired listings');
 
-    const maxMonths = Number(process.env.MAX_DEAL_DURATION_MONTHS ?? 24);
+    const maxMonths = this.appCfg.maxDealDurationMonths;
     const cutoff = new Date();
     cutoff.setMonth(cutoff.getMonth() - maxMonths);
 

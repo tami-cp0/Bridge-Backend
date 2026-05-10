@@ -1,4 +1,5 @@
 ﻿import {
+  Inject,
   Injectable,
   NotFoundException,
   BadRequestException,
@@ -18,25 +19,30 @@ import {
 } from '../../db/schema';
 import { eq, and } from 'drizzle-orm';
 import { SquadService } from '../squad/squad.service';
+import { SquadConfig } from '../../config/config';
+import type { SquadConfigType } from '../../config/config.types';
 import { CreateInvestmentDto } from './dto/create-investment.dto';
 import { v4 as uuidv4 } from 'uuid';
 
 const TIER_MIN_INVESTMENT_KOBO: Record<number, number> = {
-  1: 500_000, // â‚¦5,000
-  2: 2_500_000, // â‚¦25,000
-  3: 10_000_000, // â‚¦100,000
+  1: 500_000, // ₦5,000
+  2: 2_500_000, // ₦25,000
+  3: 10_000_000, // ₦100,000
 };
 
 const DEFAULT_POOL_RATE = 0.04; // 4% of every investment held as a default protection pool
-// Central Squad account that holds capital between investment and disbursement
-const PLATFORM_ESCROW_ACCOUNT =
-  process.env.SQUAD_ESCROW_ACCOUNT ?? 'ESCROW_ACCOUNT';
 
 @Injectable()
 export class InvestmentsService {
   private readonly logger = new Logger(InvestmentsService.name);
+  private readonly escrowAccount: string;
 
-  constructor(private squadService: SquadService) {}
+  constructor(
+    private squadService: SquadService,
+    @Inject(SquadConfig.KEY) squadCfg: SquadConfigType,
+  ) {
+    this.escrowAccount = squadCfg.escrowAccount ?? 'ESCROW_ACCOUNT';
+  }
 
   async createInvestment(investorUserId: string, dto: CreateInvestmentDto) {
     const [listing] = await db
@@ -92,7 +98,7 @@ export class InvestmentsService {
     try {
       await this.squadService.transferBetweenVirtualAccounts(
         investorUser.squadVirtualAccountNumber,
-        PLATFORM_ESCROW_ACCOUNT,
+        this.escrowAccount,
         dto.amountCommitted,
         ref,
       );
@@ -202,7 +208,7 @@ export class InvestmentsService {
       const trancheRef = `tranche1-${uuidv4()}`;
       try {
         await this.squadService.transferBetweenVirtualAccounts(
-          PLATFORM_ESCROW_ACCOUNT,
+          this.escrowAccount,
           busUser.squadVirtualAccountNumber!,
           tranche1.amount,
           trancheRef,

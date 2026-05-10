@@ -1,10 +1,12 @@
 import {
+  Inject,
   Injectable,
   Logger,
   BadRequestException,
   InternalServerErrorException,
 } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
+import { MonoConfig } from '../../config/config';
+import type { MonoConfigType } from '../../config/config.types';
 import axios, { AxiosInstance } from 'axios';
 
 @Injectable()
@@ -12,11 +14,11 @@ export class MonoService {
   private readonly logger = new Logger(MonoService.name);
   private readonly client: AxiosInstance;
 
-  constructor(private config: ConfigService) {
+  constructor(@Inject(MonoConfig.KEY) monoCfg: MonoConfigType) {
     this.client = axios.create({
       baseURL: 'https://api.withmono.com',
       headers: {
-        'mono-sec-key': config.get<string>('MONO_SECRET_KEY'),
+        'mono-sec-key': monoCfg.secretKey,
         'Content-Type': 'application/json',
       },
     });

@@ -1,12 +1,13 @@
-﻿import { Injectable } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
+﻿import { Inject, Injectable } from '@nestjs/common';
+import { AppConfig } from '../../config/config';
+import type { AppConfigType } from '../../config/config.types';
 import { db } from '../../db';
 import { sweepEvents, listings } from '../../db/schema';
 import { eq, and, gte } from 'drizzle-orm';
 
 @Injectable()
 export class DynamicSweepService {
-  constructor(private config: ConfigService) {}
+  constructor(@Inject(AppConfig.KEY) private appCfg: AppConfigType) {}
 
   // Adjusts the sweep % up or down based on how the current payment compares to the 30-day average
   async calculateSweep(
@@ -19,9 +20,7 @@ export class DynamicSweepService {
       .where(eq(listings.id, listingId));
 
     const baseRate = Number(listing?.revenueSharePercent ?? 8);
-    const tolerance = Number(
-      this.config.get<string>('SWEEP_TOLERANCE_PERCENT') ?? 2,
-    );
+    const tolerance = this.appCfg.sweepTolerancePercent;
 
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);

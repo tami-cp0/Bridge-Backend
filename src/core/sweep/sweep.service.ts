@@ -1,10 +1,13 @@
 ﻿import {
+  Inject,
   Injectable,
   Logger,
   NotFoundException,
   BadRequestException,
   BadGatewayException,
 } from '@nestjs/common';
+import { SquadConfig } from '../../config/config';
+import type { SquadConfigType } from '../../config/config.types';
 import { db } from '../../db';
 import {
   users,
@@ -22,19 +25,19 @@ import { DynamicSweepService } from './dynamic-sweep.service';
 import { BridgeRatingService } from '../bridge-rating/bridge-rating.service';
 import { v4 as uuidv4 } from 'uuid';
 
-// Central Squad virtual account that holds swept funds before distributing to investors
-const PLATFORM_ESCROW_ACCOUNT =
-  process.env.SQUAD_ESCROW_ACCOUNT ?? 'ESCROW_ACCOUNT';
-
 @Injectable()
 export class SweepService {
   private readonly logger = new Logger(SweepService.name);
+  private readonly escrowAccount: string;
 
   constructor(
     private squadService: SquadService,
     private dynamicSweepService: DynamicSweepService,
     private bridgeRatingService: BridgeRatingService,
-  ) {}
+    @Inject(SquadConfig.KEY) squadCfg: SquadConfigType,
+  ) {
+    this.escrowAccount = squadCfg.escrowAccount ?? 'ESCROW_ACCOUNT';
+  }
 
   // Entry point from the webhook controller; only processes successful payment events
   async handleSquadWebhook(payload: Record<string, unknown>) {
@@ -127,7 +130,7 @@ export class SweepService {
     try {
       await this.squadService.transferBetweenVirtualAccounts(
         user.squadVirtualAccountNumber!,
-        PLATFORM_ESCROW_ACCOUNT,
+        this.escrowAccount,
         sweepAmount,
         sweepRef,
       );
@@ -205,7 +208,7 @@ export class SweepService {
       const distRef = `dist-${uuidv4()}`;
       try {
         await this.squadService.transferBetweenVirtualAccounts(
-          PLATFORM_ESCROW_ACCOUNT,
+          this.escrowAccount,
           investorUser.squadVirtualAccountNumber,
           distributionAmount,
           distRef,
@@ -328,7 +331,7 @@ export class SweepService {
           const ref = `tranche${tc.number}-${uuidv4()}`;
           try {
             await this.squadService.transferBetweenVirtualAccounts(
-              PLATFORM_ESCROW_ACCOUNT,
+              this.escrowAccount,
               busUser.squadVirtualAccountNumber,
               tranche.amount,
               ref,
@@ -405,7 +408,7 @@ export class SweepService {
       const ref = `tranche${tranche.trancheNumber}-early-${uuidv4()}`;
       try {
         await this.squadService.transferBetweenVirtualAccounts(
-          PLATFORM_ESCROW_ACCOUNT,
+          this.escrowAccount,
           user.squadVirtualAccountNumber,
           tranche.amount,
           ref,
@@ -434,7 +437,7 @@ export class SweepService {
     try {
       await this.squadService.transferBetweenVirtualAccounts(
         user.squadVirtualAccountNumber,
-        PLATFORM_ESCROW_ACCOUNT,
+        this.escrowAccount,
         remaining,
         repayRef,
       );

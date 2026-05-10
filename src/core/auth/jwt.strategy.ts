@@ -1,17 +1,17 @@
-﻿import { Injectable } from '@nestjs/common';
+﻿import { Inject, Injectable } from '@nestjs/common';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
-import { ConfigService } from '@nestjs/config';
+import { JwtConfig } from '../../config/config';
+import type { JwtConfigType } from '../../config/config.types';
 import { JwtPayload } from '../../common/decorators/current-user.decorator';
 
-// Passport strategy that validates the JWT on every protected route
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
-  constructor(config: ConfigService) {
+  constructor(@Inject(JwtConfig.KEY) jwtCfg: JwtConfigType) {
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,
-      secretOrKey: config.get<string>('JWT_SECRET')!,
+      secretOrKey: jwtCfg.secret!,
     });
   }
 

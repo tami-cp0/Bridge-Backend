@@ -1,10 +1,12 @@
 ﻿import {
+  Inject,
   Injectable,
   NotFoundException,
   BadRequestException,
   ConflictException,
 } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
+import { SquadConfig } from '../../config/config';
+import type { SquadConfigType } from '../../config/config.types';
 import { MonoService } from '../mono/mono.service';
 import { db } from '../../db';
 import {
@@ -20,7 +22,7 @@ import { eq, and, or, inArray, desc, ne } from 'drizzle-orm';
 @Injectable()
 export class BusinessService {
   constructor(
-    private config: ConfigService,
+    @Inject(SquadConfig.KEY) private squadCfg: SquadConfigType,
     private monoService: MonoService,
   ) {}
 
@@ -149,7 +151,7 @@ export class BusinessService {
     }
 
     const virtualAccountNumber = user.squadVirtualAccountNumber;
-    const squadBase = this.config.get<string>('SQUAD_BASE_URL') ?? '';
+    const squadBase = this.squadCfg.baseUrl ?? '';
     const payBase = squadBase.includes('sandbox')
       ? 'https://sandbox.squadco.com'
       : 'https://pay.squadco.com';

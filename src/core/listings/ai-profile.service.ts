@@ -1,6 +1,7 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import OpenAI from 'openai';
-import { ConfigService } from '@nestjs/config';
+import { OpenAiConfig } from '../../config/config';
+import type { OpenAiConfigType } from '../../config/config.types';
 
 // Model is a deliberate code decision (quality + cost trade-off), not a runtime config
 const MODEL = 'gpt-4o';
@@ -31,9 +32,9 @@ interface ProfileInput {
 export class AiProfileService {
   private client: OpenAI;
 
-  constructor(private config: ConfigService) {
+  constructor(@Inject(OpenAiConfig.KEY) openAiCfg: OpenAiConfigType) {
     this.client = new OpenAI({
-      apiKey: config.get<string>('OPENAI_API_KEY'),
+      apiKey: openAiCfg.apiKey,
     });
   }
 

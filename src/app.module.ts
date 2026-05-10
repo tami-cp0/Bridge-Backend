@@ -1,6 +1,8 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { ScheduleModule } from '@nestjs/schedule';
+import { configurations } from './config/config';
+import { validateConfig } from './config/config.validation';
 import { SquadModule } from './core/squad/squad.module';
 import { MonoModule } from './core/mono/mono.module';
 import { AuthModule } from './core/auth/auth.module';
@@ -17,7 +19,13 @@ import { SchedulerModule } from './core/scheduler/scheduler.module';
 
 @Module({
   imports: [
-    ConfigModule.forRoot({ isGlobal: true }),
+    ConfigModule.forRoot({
+      isGlobal: true,
+      envFilePath: ['.env'],
+      ignoreEnvFile: false,
+      load: [...configurations],
+      validate: validateConfig,
+    }),
     ScheduleModule.forRoot(),
     SquadModule,
     MonoModule,

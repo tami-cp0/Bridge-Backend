@@ -1,10 +1,12 @@
 ﻿import {
+  Inject,
   Injectable,
   ConflictException,
   UnauthorizedException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
-import { ConfigService } from '@nestjs/config';
+import { JwtConfig } from '../../config/config';
+import type { JwtConfigType } from '../../config/config.types';
 import * as bcrypt from 'bcrypt';
 import { createHmac } from 'crypto';
 import { db } from '../../db';
@@ -27,7 +29,7 @@ export class AuthService {
 
   constructor(
     private jwtService: JwtService,
-    private config: ConfigService,
+    @Inject(JwtConfig.KEY) private jwtCfg: JwtConfigType,
     private squadService: SquadService,
     private monoService: MonoService,
   ) {}
@@ -174,9 +176,7 @@ export class AuthService {
   }
 
   private hashBvn(bvn: string): string {
-    return createHmac('sha256', this.config.get<string>('JWT_SECRET')!)
-      .update(bvn)
-      .digest('hex');
+    return createHmac('sha256', this.jwtCfg.secret!).update(bvn).digest('hex');
   }
 
   private async checkDuplicateBvn(bvn: string) {
@@ -194,8 +194,8 @@ export class AuthService {
     return this.jwtService.sign(
       { sub: userId, userType, email },
       {
-        secret: this.config.getOrThrow<string>('JWT_SECRET'),
-        expiresIn: this.config.get<string>('JWT_EXPIRES_IN') ?? '7d',
+        secret: this.jwtCfg.secret,
+        expiresIn: this.jwtCfg.expiresIn as any, // eslint-disable-line @typescript-eslint/no-unsafe-assignment
       },
     );
   }

@@ -1,5 +1,6 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
+import { Inject, Injectable, Logger } from '@nestjs/common';
+import { SquadConfig } from '../../config/config';
+import type { SquadConfigType } from '../../config/config.types';
 import axios, { AxiosInstance } from 'axios';
 import * as crypto from 'crypto';
 
@@ -15,12 +16,11 @@ export class SquadService {
   private readonly logger = new Logger(SquadService.name);
   private readonly client: AxiosInstance;
 
-  constructor(private config: ConfigService) {
-    // Pre-configure base URL and auth header so callers don't need to handle them
+  constructor(@Inject(SquadConfig.KEY) private squadCfg: SquadConfigType) {
     this.client = axios.create({
-      baseURL: config.get<string>('SQUAD_BASE_URL'),
+      baseURL: squadCfg.baseUrl,
       headers: {
-        Authorization: `Bearer ${config.get<string>('SQUAD_SECRET_KEY')}`,
+        Authorization: `Bearer ${squadCfg.secretKey}`,
         'Content-Type': 'application/json',
       },
     });
@@ -134,7 +134,7 @@ export class SquadService {
 
   // Validates Squad's HMAC-SHA512 signature; timingSafeEqual prevents timing attacks
   verifyWebhookSignature(rawBody: string, signatureHeader: string): boolean {
-    const secret = this.config.get<string>('SQUAD_SECRET_KEY')!;
+    const secret = this.squadCfg.secretKey!;
     const computed = crypto
       .createHmac('sha512', secret)
       .update(rawBody)
