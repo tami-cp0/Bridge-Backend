@@ -12,14 +12,12 @@ import {
 } from '../db/schema';
 import { eq, and, or, gte, desc } from 'drizzle-orm';
 
-type BridgeStanding = 'Seed' | 'Rising' | 'Established' | 'Trusted' | 'Elite';
+type BridgeStanding = 'Seed' | 'Established' | 'Elite';
 
-// Maps a 0–100 numeric score to the five Bridge standing labels
+// Maps a 0–100 numeric score to the three Bridge standing labels
 function scoreToStanding(score: number): BridgeStanding {
-  if (score <= 20) return 'Seed';
-  if (score <= 40) return 'Rising';
-  if (score <= 60) return 'Established';
-  if (score <= 80) return 'Trusted';
+  if (score < 50) return 'Seed';
+  if (score < 80) return 'Established';
   return 'Elite';
 }
 
@@ -143,11 +141,12 @@ export class BridgeRatingService {
         });
       }
 
-      // Promote to tier 3 when a tier-2 business reaches Established standing or above
-      if (
-        ['Established', 'Trusted', 'Elite'].includes(newStanding) &&
-        bp.tier === 2
-      ) {
+      if (newStanding === 'Established' && bp.tier === 1) {
+        await db
+          .update(businessProfiles)
+          .set({ tier: 2, updatedAt: new Date() })
+          .where(eq(businessProfiles.id, businessId));
+      } else if (newStanding === 'Elite' && bp.tier === 2) {
         await db
           .update(businessProfiles)
           .set({ tier: 3, updatedAt: new Date() })

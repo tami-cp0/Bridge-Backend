@@ -1,11 +1,20 @@
-import { IsNumber, IsPositive, IsString, IsNotEmpty } from 'class-validator';
+import { IsNumber, IsPositive, IsString, IsNotEmpty, IsIn } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class CreateListingDto {
-  @ApiProperty({ example: 5000000, description: 'Capital requested in kobo. Must not exceed the business tier cap (Tier 1: ₦100k, Tier 2: ₦500k, Tier 3: ₦1M). Businesses can raise any amount up to their cap.' })
+  @ApiProperty({ example: 5000000, description: 'Capital requested in kobo. Capped at a revenue multiple per tier (Tier 1: 1.5×, Tier 2: 2×, Tier 3: 2.5× average monthly revenue).' })
   @IsNumber()
   @IsPositive()
   capitalRequested!: number;
+
+  @ApiProperty({
+    example: 12,
+    description:
+      'Preferred repayment duration in months. Must be one of: 12, 15, 18, 21, 24, 27, 30',
+    enum: [12, 15, 18, 21, 24, 27, 30],
+  })
+  @IsIn([12, 15, 18, 21, 24, 27, 30])
+  preferredRepaymentMonths!: number;
 
   @ApiProperty({ example: 'Purchase two additional commercial ovens and expand delivery fleet.' })
   @IsString()

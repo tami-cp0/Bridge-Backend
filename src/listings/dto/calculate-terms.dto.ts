@@ -1,4 +1,4 @@
-import { IsNumber, IsPositive } from 'class-validator';
+import { IsNumber, IsPositive, IsIn } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class CalculateTermsDto {
@@ -6,4 +6,13 @@ export class CalculateTermsDto {
   @IsNumber()
   @IsPositive()
   capitalRequested!: number;
+
+  @ApiProperty({
+    example: 12,
+    description:
+      'Preferred repayment duration in months. Must be one of: 12, 15, 18, 21, 24, 27, 30',
+    enum: [12, 15, 18, 21, 24, 27, 30],
+  })
+  @IsIn([12, 15, 18, 21, 24, 27, 30])
+  preferredRepaymentMonths!: number;
 }

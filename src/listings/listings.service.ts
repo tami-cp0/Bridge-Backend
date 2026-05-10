@@ -17,30 +17,43 @@ import { eq, and, or, gte, lte, asc, desc, SQL } from 'drizzle-orm';
 import { AiProfileService } from './ai-profile.service';
 import { CreateListingDto } from './dto/create-listing.dto';
 
-// Max capital a business can raise per tier (in kobo)
-const TIER_LIMITS = { 1: 10_000_000, 2: 50_000_000, 3: 100_000_000 };
-
 // Return rate formula constants
-const BASE_RETURN_RATE = 30; // percent — platform baseline for all businesses
-const MIN_RETURN_RATE = 15;
+const BASE_RETURN_RATE = 30;       // percent — platform baseline for all businesses
+const MIN_RETURN_RATE = 20;
 const MAX_RETURN_RATE = 30;
-const HORIZON_BASE_MONTHS = 6;  // deals at or under this horizon get no horizon bump
+const HORIZON_BASE_MONTHS = 6;    // deals at or under this horizon get no horizon bump
 const HORIZON_RATE_PER_MONTH = 0.5; // percent added per month beyond the base horizon
+
+// Sweep rate bounds
+const SWEEP_RATE_MIN = 5;          // floor — extend horizon instead of going below this
+const SWEEP_RATE_WARN = 12;        // block above this; business must request less or extend horizon
+const ALLOWED_MONTHS = [12, 15, 18, 21, 24, 27, 30];
 
 // Elite standing earns the most reduction; Seed earns none
 const STANDING_REDUCTIONS: Record<string, number> = {
   Seed: 0,
-  Rising: -2,
-  Established: -4,
-  Trusted: -7,
+  Established: -5,
   Elite: -10,
+};
+
+// Per-tier gates: revenue floor, max capital as a multiple of avg monthly revenue,
+// longest allowed timeline, and minimum investor ticket size
+const TIER_CONFIG: Record<number, {
+  minRevenueKobo: number;
+  revenueMultiple: number;
+  maxTimelineMonths: number;
+  minInvestmentKobo: number;
+}> = {
+  1: { minRevenueKobo: 30_000_000,    revenueMultiple: 1.5, maxTimelineMonths: 18, minInvestmentKobo: 500_000 },
+  2: { minRevenueKobo: 200_000_000,   revenueMultiple: 2.0, maxTimelineMonths: 24, minInvestmentKobo: 2_500_000 },
+  3: { minRevenueKobo: 1_000_000_000, revenueMultiple: 2.5, maxTimelineMonths: 30, minInvestmentKobo: 10_000_000 },
 };
 
 @Injectable()
 export class ListingsService {
   constructor(private aiProfileService: AiProfileService) {}
 
-  async calculateTerms(userId: string, capitalRequested: number) {
+  async calculateTerms(userId: string, capitalRequested: number, preferredRepaymentMonths: number) {
     const [bp] = await db
       .select()
       .from(businessProfiles)
@@ -54,27 +67,58 @@ export class ListingsService {
       .where(eq(bridgeRatings.businessId, bp.id));
 
     const tier = bp.tier ?? 1;
-    const maxCapital = this.getTierLimit(tier);
-
-    if (capitalRequested > maxCapital) {
-      throw new BadRequestException(
-        `Capital requested exceeds tier ${tier} limit of ₦${maxCapital / 100}`,
-      );
-    }
+    const tierConfig = TIER_CONFIG[tier as 1 | 2 | 3] ?? TIER_CONFIG[1];
 
     // Prefer verified Mono inflow over self-reported revenue for more accurate terms
     const avgMonthlyInflow = bp.monoAverageMonthlyInflow ?? bp.averageMonthlyRevenue;
+
+    if (avgMonthlyInflow < tierConfig.minRevenueKobo) {
+      const minRevNaira = (tierConfig.minRevenueKobo / 100).toLocaleString();
+      throw new BadRequestException(
+        `Tier ${tier} requires a minimum average monthly revenue of ₦${minRevNaira}`,
+      );
+    }
+
+    if (preferredRepaymentMonths > tierConfig.maxTimelineMonths) {
+      throw new BadRequestException(
+        `Tier ${tier} listings have a maximum repayment timeline of ${tierConfig.maxTimelineMonths} months`,
+      );
+    }
+
+    const maxCapitalByMultiple = Math.floor(avgMonthlyInflow * tierConfig.revenueMultiple);
+    if (capitalRequested > maxCapitalByMultiple) {
+      const maxNaira = (maxCapitalByMultiple / 100).toLocaleString();
+      throw new BadRequestException(
+        `Tier ${tier} businesses can raise up to ${tierConfig.revenueMultiple}× their average monthly revenue (₦${maxNaira})`,
+      );
+    }
 
     // Pass 1: apply Bridge Rating reduction to the base rate
     const standing = rating?.standing ?? 'Seed';
     const ratingReduction = STANDING_REDUCTIONS[standing] ?? 0;
     const ratingAdjustedRate = BASE_RETURN_RATE + ratingReduction;
 
-    // Compute repayment horizon using the rating-adjusted rate so the horizon bump
-    // can reference a realistic target month count before the final rate is clamped
     const pass1ReturnAmount = Math.round(capitalRequested * (1 + ratingAdjustedRate / 100));
-    const rawSharePercent1 = (pass1ReturnAmount / avgMonthlyInflow / 8) * 100;
-    const revenueSharePercent = Math.max(3, Math.min(15, Math.round(rawSharePercent1 * 10) / 10));
+    const rawSharePercent1 = (pass1ReturnAmount / avgMonthlyInflow / preferredRepaymentMonths) * 100;
+    const rawRounded = Math.round(rawSharePercent1 * 10) / 10;
+
+    if (rawRounded > SWEEP_RATE_WARN) {
+      const maxCapitalKobo = Math.floor(
+        (SWEEP_RATE_WARN / 100 * avgMonthlyInflow * preferredRepaymentMonths) /
+        (1 + ratingAdjustedRate / 100),
+      );
+      const minMonths = ALLOWED_MONTHS.find(
+        m => (pass1ReturnAmount / avgMonthlyInflow / m) * 100 <= SWEEP_RATE_WARN,
+      ) ?? ALLOWED_MONTHS[ALLOWED_MONTHS.length - 1];
+      const capitalNaira = (capitalRequested / 100).toLocaleString();
+      const maxCapitalNaira = (maxCapitalKobo / 100).toLocaleString();
+      throw new BadRequestException(
+        `A ${preferredRepaymentMonths}-month repayment on ₦${capitalNaira} works out to ${rawRounded.toFixed(1)}% of your monthly revenue per sweep. The ceiling is ${SWEEP_RATE_WARN}%.\n\nTwo ways to fix it:\n- Request ₦${maxCapitalNaira} or less and keep the ${preferredRepaymentMonths}-month timeline\n- Keep ₦${capitalNaira} and extend to ${minMonths} months`,
+      );
+    }
+
+    const revenueSharePercent = rawRounded < SWEEP_RATE_MIN ? SWEEP_RATE_MIN : rawRounded;
+
     const pass1Months = Math.ceil(pass1ReturnAmount / ((avgMonthlyInflow * revenueSharePercent) / 100));
 
     // Pass 2: apply horizon bump then clamp to platform bounds
@@ -138,7 +182,7 @@ export class ListingsService {
       throw new ConflictException('A listing is already active or funded');
     }
 
-    const terms = await this.calculateTerms(userId, dto.capitalRequested);
+    const terms = await this.calculateTerms(userId, dto.capitalRequested, dto.preferredRepaymentMonths);
 
     const [user] = await db.select().from(users).where(eq(users.id, userId));
     const [rating] = await db
@@ -295,8 +339,8 @@ export class ListingsService {
 
       const months = l.listings.targetRepaymentMonths ?? 12;
       const timelineMatch: Record<string, boolean> = {
-        short: months <= 6,
-        medium: months <= 12,
+        short: months <= 15,
+        medium: months <= 24,
         flexible: true,
       };
       if (profile.returnTimelinePreference && timelineMatch[profile.returnTimelinePreference]) score += 25;
@@ -332,10 +376,6 @@ export class ListingsService {
       .where(eq(tranches.listingId, id));
 
     return { ...result, tranches: listingTranches };
-  }
-
-  private getTierLimit(tier: number): number {
-    return TIER_LIMITS[tier as 1 | 2 | 3] ?? TIER_LIMITS[1];
   }
 
 }

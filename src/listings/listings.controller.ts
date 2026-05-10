@@ -35,7 +35,7 @@ export class ListingsController {
   @ApiOperation({ summary: 'Browse all active listings with optional filters and sorting' })
   @ApiQuery({ name: 'sector', required: false, enum: SectorEnum })
   @ApiQuery({ name: 'tier', required: false, type: Number, example: 1 })
-  @ApiQuery({ name: 'standing', required: false, enum: ['Seed', 'Rising', 'Established', 'Trusted', 'Elite'] })
+  @ApiQuery({ name: 'standing', required: false, enum: ['Seed', 'Established', 'Elite'] })
   @ApiQuery({ name: 'minReturn', required: false, type: Number, description: 'Minimum total return percent', example: 15 })
   @ApiQuery({ name: 'maxReturn', required: false, type: Number, description: 'Maximum total return percent', example: 30 })
   @ApiQuery({ name: 'minCapital', required: false, type: Number, description: 'Minimum capital requested in kobo', example: 1000000 })
@@ -145,7 +145,7 @@ export class ListingsController {
     @CurrentUser() user: JwtPayload,
     @Body() dto: CalculateTermsDto,
   ) {
-    return this.listingsService.calculateTerms(user.userId, dto.capitalRequested);
+    return this.listingsService.calculateTerms(user.userId, dto.capitalRequested, dto.preferredRepaymentMonths);
   }
 
   @Post()

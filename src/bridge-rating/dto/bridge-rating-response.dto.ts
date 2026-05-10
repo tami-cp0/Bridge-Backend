@@ -10,7 +10,7 @@ export class BridgeRatingResponseDto {
   @ApiProperty({ example: '72.50', description: 'Overall score out of 100' })
   overallScore: string;
 
-  @ApiProperty({ enum: ['Seed', 'Rising', 'Established', 'Trusted', 'Elite'] })
+  @ApiProperty({ enum: ['Seed', 'Established', 'Elite'] })
   standing: string;
 
   @ApiProperty({ example: '20.00', description: 'Max 30 pts' })

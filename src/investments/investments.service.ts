@@ -20,7 +20,12 @@ import { SquadService } from '../squad/squad.service';
 import { CreateInvestmentDto } from './dto/create-investment.dto';
 import { v4 as uuidv4 } from 'uuid';
 
-const MIN_INVESTMENT_KOBO = 500_000;  // ₦5,000 minimum
+const TIER_MIN_INVESTMENT_KOBO: Record<number, number> = {
+  1: 500_000,     // ₦5,000
+  2: 2_500_000,   // ₦25,000
+  3: 10_000_000,  // ₦100,000
+};
+
 const DEFAULT_POOL_RATE = 0.04;        // 4% of every investment held as a default protection pool
 // Central Squad account that holds capital between investment and disbursement
 const PLATFORM_ESCROW_ACCOUNT = process.env.SQUAD_ESCROW_ACCOUNT ?? 'ESCROW_ACCOUNT';
@@ -37,8 +42,16 @@ export class InvestmentsService {
 
     if (!listing) throw new NotFoundException('Listing not found');
     if (listing.status !== 'active') throw new BadRequestException('Listing is not active');
-    if (dto.amountCommitted < MIN_INVESTMENT_KOBO) {
-      throw new BadRequestException('Minimum investment is ₦5,000 (500,000 kobo)');
+
+    const [bp] = await db
+      .select({ tier: businessProfiles.tier })
+      .from(businessProfiles)
+      .where(eq(businessProfiles.id, listing.businessId));
+
+    const minInvestmentKobo = TIER_MIN_INVESTMENT_KOBO[bp?.tier ?? 1] ?? TIER_MIN_INVESTMENT_KOBO[1];
+    const minInvestmentNaira = (minInvestmentKobo / 100).toLocaleString();
+    if (dto.amountCommitted < minInvestmentKobo) {
+      throw new BadRequestException(`Minimum investment for this listing is ₦${minInvestmentNaira}`);
     }
 
     const remaining = (listing.capitalRequested ?? 0) - (listing.totalCommitted ?? 0);

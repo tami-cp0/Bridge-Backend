@@ -32,11 +32,9 @@ export const trancheStatusEnum = pgEnum('tranche_status', [
   'returned', // returned to escrow (unused)
 ]);
 export const bridgeStandingEnum = pgEnum('bridge_standing', [
-  'Seed',        // 0–20
-  'Rising',      // 21–40
-  'Established', // 41–60
-  'Trusted',     // 61–80
-  'Elite',       // 81–100
+  'Seed',        // 0–49
+  'Established', // 50–79
+  'Elite',       // 80–100
 ]);
 
 // --- Tables ---

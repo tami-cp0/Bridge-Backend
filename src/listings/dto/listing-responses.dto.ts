@@ -4,7 +4,7 @@ export class ReturnRateBreakdownDto {
   @ApiProperty({ example: 30 })
   baseRate: number;
 
-  @ApiProperty({ enum: ['Seed', 'Rising', 'Established', 'Trusted', 'Elite'] })
+  @ApiProperty({ enum: ['Seed', 'Established', 'Elite'] })
   standing: string;
 
   @ApiProperty({ example: -7, description: 'Reduction applied based on Bridge Rating standing' })
@@ -13,7 +13,7 @@ export class ReturnRateBreakdownDto {
   @ApiProperty({ example: 1.5, description: 'Additional percent per month beyond 6-month base horizon' })
   horizonBump: number;
 
-  @ApiProperty({ example: 24.5, description: 'Final clamped rate (15–30%)' })
+  @ApiProperty({ example: 24.5, description: 'Final clamped rate (20–30%)' })
   finalRate: number;
 }
 
