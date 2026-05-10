@@ -1,18 +1,18 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { ScheduleModule } from '@nestjs/schedule';
-import { SquadModule } from './squad/squad.module';
-import { AuthModule } from './auth/auth.module';
-import { VerificationModule } from './verification/verification.module';
-import { BusinessModule } from './business/business.module';
-import { InvestorModule } from './investor/investor.module';
-import { PlatformModule } from './platform/platform.module';
-import { ListingsModule } from './listings/listings.module';
-import { InvestmentsModule } from './investments/investments.module';
-import { SweepModule } from './sweep/sweep.module';
-import { BridgeRatingModule } from './bridge-rating/bridge-rating.module';
-import { NotificationsModule } from './notifications/notifications.module';
-import { SchedulerModule } from './scheduler/scheduler.module';
+import { SquadModule } from './core/squad/squad.module';
+import { AuthModule } from './core/auth/auth.module';
+import { VerificationModule } from './core/verification/verification.module';
+import { BusinessModule } from './core/business/business.module';
+import { InvestorModule } from './core/investor/investor.module';
+import { PlatformModule } from './core/platform/platform.module';
+import { ListingsModule } from './core/listings/listings.module';
+import { InvestmentsModule } from './core/investments/investments.module';
+import { SweepModule } from './core/sweep/sweep.module';
+import { BridgeRatingModule } from './core/bridge-rating/bridge-rating.module';
+import { NotificationsModule } from './core/notifications/notifications.module';
+import { SchedulerModule } from './core/scheduler/scheduler.module';
 
 @Module({
   imports: [

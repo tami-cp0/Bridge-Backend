@@ -47,9 +47,6 @@ Thumbs.db
 *.sln
 *.sw?
 
-# Drizzle
-drizzle/
-
 # Claude
 .claude/
 CLAUDE.md
