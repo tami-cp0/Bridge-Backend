@@ -21,7 +21,9 @@
     "db:generate": "drizzle-kit generate --config src/config/drizzle.config.ts",
     "db:migrate": "drizzle-kit migrate --config src/config/drizzle.config.ts",
     "db:push": "drizzle-kit push --config src/config/drizzle.config.ts",
-    "db:studio": "drizzle-kit studio --config src/config/drizzle.config.ts"
+    "db:studio": "drizzle-kit studio --config src/config/drizzle.config.ts",
+    "script:create-escrow": "ts-node --project tsconfig.scripts.json scripts/create-escrow-account.ts",
+    "script:mono-test-account": "ts-node --project tsconfig.scripts.json scripts/mono-get-test-account.ts"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.1.0",
@@ -81,15 +83,22 @@
       "json",
       "ts"
     ],
-    "rootDir": "src",
+    "rootDir": ".",
+    "roots": [
+      "<rootDir>/src",
+      "<rootDir>/test"
+    ],
     "testRegex": ".*\\.spec\\.ts$",
+    "testPathIgnorePatterns": [
+      "<rootDir>/test/.*\\.e2e-spec\\.ts$"
+    ],
     "transform": {
       "^.+\\.(t|j)s$": "ts-jest"
     },
     "collectCoverageFrom": [
       "**/*.(t|j)s"
     ],
-    "coverageDirectory": "../coverage",
+    "coverageDirectory": "coverage",
     "testEnvironment": "node"
   }
 }

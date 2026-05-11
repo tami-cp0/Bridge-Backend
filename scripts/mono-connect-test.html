@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Mono Connect Test</title>
+  <style>
+    body { font-family: sans-serif; max-width: 600px; margin: 60px auto; padding: 0 20px; }
+    button { padding: 12px 24px; font-size: 16px; cursor: pointer; background: #6c47ff; color: #fff; border: none; border-radius: 6px; }
+    button:disabled { background: #aaa; cursor: not-allowed; }
+    #status { margin-top: 16px; color: #555; font-size: 14px; }
+    #result { margin-top: 24px; padding: 16px; background: #f4f4f4; border-radius: 6px; display: none; }
+    #result h3 { margin: 0 0 8px; }
+    code { font-size: 14px; word-break: break-all; background: #e8e8e8; padding: 4px 8px; border-radius: 4px; display: block; margin-top: 4px; }
+  </style>
+</head>
+<body>
+  <h1>Mono Connect — get test code</h1>
+  <p>Click <strong>Open Mono Connect</strong>, then:</p>
+  <ol>
+    <li>Search for and select <strong>any Nigerian bank</strong> (e.g. GTBank, Access, Kuda)</li>
+    <li>Enter these sandbox credentials:
+      <ul>
+        <li><strong>Username / Account:</strong> <code>test-user@gmail.com</code></li>
+        <li><strong>Password:</strong> <code>123456</code></li>
+        <li><strong>OTP (if asked):</strong> <code>123456</code></li>
+      </ul>
+    </li>
+    <li>Complete the flow — the connect code will appear below</li>
+  </ol>
+
+  <button id="connect-btn" disabled>Loading widget…</button>
+  <div id="status"></div>
+
+  <div id="result">
+    <h3>Connect code (one-time use)</h3>
+    <code id="code-output"></code>
+    <p style="margin-top: 16px;">Add to <strong>.env</strong>:</p>
+    <code id="env-line"></code>
+  </div>
+
+  <script src="https://connect.withmono.com/connect.js"></script>
+  <script>
+    const publicKey = 'test_pk_mvr35xxyg23ekjxo2u69';
+    const btn = document.getElementById('connect-btn');
+    const status = document.getElementById('status');
+
+    let connect;
+    try {
+      connect = new Connect({
+        key: publicKey,
+        scope: 'auth',
+        data: {
+          customer: {
+            name: 'Bridge Test User',
+            email: 'test@bridge.com',
+          },
+        },
+        onLoad: () => {
+          btn.disabled = false;
+          btn.textContent = 'Open Mono Connect';
+          status.textContent = 'Widget loaded.';
+        },
+        onSuccess: ({ code }) => {
+          document.getElementById('code-output').textContent = code;
+          document.getElementById('env-line').textContent = `MONO_TEST_CODE=${code}`;
+          document.getElementById('result').style.display = 'block';
+          status.textContent = 'Done! Copy the code above into your .env, then run the integration test to get MONO_TEST_ACCOUNT_ID.';
+        },
+        onClose: () => {
+          status.textContent = 'Widget closed.';
+        },
+      });
+
+      connect.setup();
+    } catch (e) {
+      status.textContent = 'Error initialising widget: ' + e.message + ' — check the browser console.';
+      console.error(e);
+    }
+
+    btn.addEventListener('click', () => {
+      if (connect) connect.open();
+    });
+  </script>
+</body>
+</html>
