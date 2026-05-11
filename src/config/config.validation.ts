@@ -41,6 +41,10 @@ class EnvironmentVariables {
   @IsOptional()
   MONO_PUBLIC_KEY: string;
 
+  @IsString()
+  @IsOptional()
+  MONO_WEBHOOK_SECRET: string;
+
   @IsString({ message: 'OPENAI_API_KEY must be a string' })
   @IsNotEmpty({ message: 'OPENAI_API_KEY is required and cannot be empty' })
   OPENAI_API_KEY: string;

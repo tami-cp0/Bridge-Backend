@@ -18,6 +18,7 @@ export const SquadConfig = registerAs('squad', () => ({
 export const MonoConfig = registerAs('mono', () => ({
   secretKey: process.env.MONO_SECRET_KEY,
   publicKey: process.env.MONO_PUBLIC_KEY,
+  webhookSecret: process.env.MONO_WEBHOOK_SECRET,
 }));
 
 export const OpenAiConfig = registerAs('openai', () => ({

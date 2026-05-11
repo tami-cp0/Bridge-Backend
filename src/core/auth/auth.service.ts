@@ -21,7 +21,6 @@ import { RegisterBusinessDto } from './dto/register-business.dto';
 import { RegisterInvestorDto } from './dto/register-investor.dto';
 import { LoginDto } from './dto/login.dto';
 import { SquadService } from '../squad/squad.service';
-import { MonoService } from '../mono/mono.service';
 
 @Injectable()
 export class AuthService {
@@ -31,13 +30,11 @@ export class AuthService {
     private jwtService: JwtService,
     @Inject(JwtConfig.KEY) private jwtCfg: JwtConfigType,
     private squadService: SquadService,
-    private monoService: MonoService,
   ) {}
 
   async registerBusiness(dto: RegisterBusinessDto) {
     await this.checkDuplicateEmailPhone(dto.email, dto.phone);
     await this.checkDuplicateBvn(dto.bvn);
-    await this.monoService.verifyBvn(dto.bvn);
 
     const [passwordHash, bvnHash] = await Promise.all([
       bcrypt.hash(dto.password, this.BCRYPT_ROUNDS),
@@ -54,6 +51,7 @@ export class AuthService {
         userType: 'business',
         bvnVerified: true,
         bvnHash,
+        beneficiaryAccount: dto.beneficiaryAccount,
       })
       .returning({ id: users.id });
 
@@ -72,12 +70,12 @@ export class AuthService {
 
     await db.insert(bridgeRatings).values({ businessId: bp.id });
 
-    const squad = await this.squadService.createVirtualAccount(
+    const squad = await this.squadService.createBusinessVirtualAccount(
       user.id,
-      dto.fullName,
+      dto.businessName,
       dto.bvn,
       dto.phone,
-      dto.email,
+      dto.beneficiaryAccount,
     );
 
     await db
@@ -100,7 +98,6 @@ export class AuthService {
   async registerInvestor(dto: RegisterInvestorDto) {
     await this.checkDuplicateEmailPhone(dto.email, dto.phone);
     await this.checkDuplicateBvn(dto.bvn);
-    await this.monoService.verifyBvn(dto.bvn);
 
     const [passwordHash, bvnHash] = await Promise.all([
       bcrypt.hash(dto.password, this.BCRYPT_ROUNDS),
@@ -117,6 +114,7 @@ export class AuthService {
         userType: 'investor',
         bvnVerified: true,
         bvnHash,
+        beneficiaryAccount: dto.beneficiaryAccount,
       })
       .returning({ id: users.id });
 
@@ -133,6 +131,7 @@ export class AuthService {
       dto.bvn,
       dto.phone,
       dto.email,
+      dto.beneficiaryAccount,
     );
 
     await db

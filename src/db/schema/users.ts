@@ -23,6 +23,7 @@ export const users = pgTable('users', {
   squadVirtualAccountReference: varchar('squad_virtual_account_reference', {
     length: 100,
   }),
+  beneficiaryAccount: varchar('beneficiary_account', { length: 10 }).notNull(),
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
 });

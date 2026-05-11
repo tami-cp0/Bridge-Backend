@@ -14,7 +14,7 @@ export class AuthController {
   @Post('register/business')
   @ApiOperation({
     summary:
-      'Register a business account — verifies BVN and creates Squad virtual account',
+      'Register a business account — creates Squad virtual account (BVN verified by Squad)',
   })
   @ApiResponse({ status: 201, type: AuthTokenResponseDto })
   @ApiResponse({
@@ -32,7 +32,7 @@ export class AuthController {
   @Post('register/investor')
   @ApiOperation({
     summary:
-      'Register an investor account — verifies BVN and creates Squad virtual account',
+      'Register an investor account — creates Squad virtual account (BVN verified by Squad)',
   })
   @ApiResponse({ status: 201, type: AuthTokenResponseDto })
   @ApiResponse({

@@ -8,6 +8,7 @@
   IsIn,
   IsEnum,
   Length,
+  Matches,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { SectorEnum } from '../../../common/enums/sector.enum';
@@ -33,12 +34,13 @@ export class RegisterInvestorDto {
   password!: string;
 
   @ApiProperty({
-    example: '12345678901',
-    description: 'BVN â€” exactly 11 digits',
+    example: '22123456789',
+    description: 'BVN â€” 11 digits starting with 22',
   })
   @IsString()
   @IsNotEmpty()
   @Length(11, 11)
+  @Matches(/^22\d{9}$/)
   bvn!: string;
 
   @ApiPropertyOptional({
@@ -62,4 +64,14 @@ export class RegisterInvestorDto {
   @IsString()
   @IsIn(['short', 'medium', 'flexible'])
   returnTimelinePreference?: string;
+
+  @ApiProperty({
+    example: '0123456789',
+    description: 'Beneficiary bank account number — exactly 10 digits',
+  })
+  @IsString()
+  @IsNotEmpty()
+  @Length(10, 10)
+  @Matches(/^\d{10}$/)
+  beneficiaryAccount!: string;
 }

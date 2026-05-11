@@ -32,6 +32,7 @@ export class SquadService {
     bvn: string,
     phone: string,
     email: string,
+    beneficiaryAccount: string,
   ): Promise<{ virtualAccountNumber: string; reference: string }> {
     const nameParts = fullName.trim().split(' ');
     const firstName = nameParts[0];
@@ -54,13 +55,42 @@ export class SquadService {
       gender: '1',
       address: 'Nigeria',
       customer_identifier: userId,
-      beneficiary_account: '0000000000',
+      beneficiary_account: beneficiaryAccount,
     });
 
     const data = unwrapSquadData(response.data);
     return {
       virtualAccountNumber: data.virtual_account_number ?? '',
       reference: data.customer_identifier ?? userId,
+    };
+  }
+
+  async createBusinessVirtualAccount(
+    businessId: string,
+    businessName: string,
+    bvn: string,
+    phone: string,
+    beneficiaryAccount: string,
+  ): Promise<{ virtualAccountNumber: string; reference: string }> {
+    const payload: Record<string, string> = {
+      business_name: businessName,
+      mobile_num: phone,
+      bvn,
+      customer_identifier: businessId,
+      beneficiary_account: beneficiaryAccount,
+    };
+
+    const response = await this.client.post<
+      SquadApiResponse<{
+        virtual_account_number?: string;
+        customer_identifier?: string;
+      }>
+    >('/virtual-account/business', payload);
+
+    const data = unwrapSquadData(response.data);
+    return {
+      virtualAccountNumber: data.virtual_account_number ?? '',
+      reference: data.customer_identifier ?? businessId,
     };
   }
 
