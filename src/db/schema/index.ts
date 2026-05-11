@@ -11,3 +11,4 @@ export * from './sweep-distributions';
 export * from './notifications';
 export * from './rating-events';
 export * from './platform-stats';
+export * from './payouts';

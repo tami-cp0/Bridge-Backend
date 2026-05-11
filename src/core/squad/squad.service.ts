@@ -109,6 +109,7 @@ export class SquadService {
     amount: number,
     bankCode: string,
     accountNumber: string,
+    accountName: string,
     reference: string,
     narration: string,
   ): Promise<{ transactionReference: string; status: string }> {
@@ -119,7 +120,7 @@ export class SquadService {
       amount: String(amount),
       bank_code: bankCode,
       account_number: accountNumber,
-      account_name: 'Beneficiary',
+      account_name: accountName,
       currency_id: 'NGN',
       remark: narration,
     });
@@ -128,6 +129,63 @@ export class SquadService {
       transactionReference: data.transaction_reference ?? reference,
       status: data.status ?? 'unknown',
     };
+  }
+
+  async lookupAccount(
+    bankCode: string,
+    accountNumber: string,
+  ): Promise<{ accountName: string }> {
+    const response = await this.client.post<
+      SquadApiResponse<{ account_name?: string }>
+    >('/payout/account/lookup', {
+      bank_code: bankCode,
+      account_number: accountNumber,
+    });
+
+    const data = unwrapSquadData(response.data);
+    return { accountName: String(data.account_name ?? '') };
+  }
+
+  async requeryTransfer(
+    reference: string,
+  ): Promise<
+    Record<string, unknown> & { transactionReference: string; status: string }
+  > {
+    const response = await this.client.post<
+      SquadApiResponse<Record<string, unknown>>
+    >('/payout/requery', {
+      transaction_reference: reference,
+    });
+
+    const data = unwrapSquadData(response.data);
+    const statusValue =
+      data.status ?? data.transaction_status ?? data.transactionStatus;
+    const status =
+      typeof statusValue === 'string'
+        ? statusValue
+        : typeof statusValue === 'number' || typeof statusValue === 'boolean'
+          ? String(statusValue)
+          : 'unknown';
+    const refValue =
+      data.transaction_reference ?? data.transactionReference ?? reference;
+    const transactionReference =
+      typeof refValue === 'string' ? refValue : reference;
+
+    return { transactionReference, status, ...data };
+  }
+
+  async listTransfers(
+    page: number,
+    perPage: number,
+    dir: 'ASC' | 'DESC',
+  ): Promise<Record<string, unknown>> {
+    const response = await this.client.get<
+      SquadApiResponse<Record<string, unknown>>
+    >('/payout/list', {
+      params: { page, perPage, dir },
+    });
+
+    return unwrapSquadData(response.data);
   }
 
   async transferBetweenVirtualAccounts(

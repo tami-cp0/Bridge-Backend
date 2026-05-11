@@ -33,6 +33,12 @@ class EnvironmentVariables {
   })
   SQUAD_ESCROW_ACCOUNT: string;
 
+  @IsString({ message: 'SQUAD_MERCHANT_ID must be a string' })
+  @IsNotEmpty({
+    message: 'SQUAD_MERCHANT_ID is required and cannot be empty',
+  })
+  SQUAD_MERCHANT_ID: string;
+
   @IsString({ message: 'MONO_SECRET_KEY must be a string' })
   @IsNotEmpty({ message: 'MONO_SECRET_KEY is required and cannot be empty' })
   MONO_SECRET_KEY: string;

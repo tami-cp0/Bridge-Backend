@@ -16,6 +16,7 @@ import { SweepModule } from './core/sweep/sweep.module';
 import { BridgeRatingModule } from './core/bridge-rating/bridge-rating.module';
 import { NotificationsModule } from './core/notifications/notifications.module';
 import { SchedulerModule } from './core/scheduler/scheduler.module';
+import { PayoutsModule } from './core/payouts/payouts.module';
 
 @Module({
   imports: [
@@ -40,6 +41,7 @@ import { SchedulerModule } from './core/scheduler/scheduler.module';
     BridgeRatingModule,
     NotificationsModule,
     SchedulerModule,
+    PayoutsModule,
   ],
 })
 export class AppModule {}

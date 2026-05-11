@@ -1,0 +1,59 @@
+import { ApiProperty } from '@nestjs/swagger';
+import { IsNotEmpty, IsString, Length, Matches } from 'class-validator';
+
+export class AccountLookupDto {
+  @ApiProperty({ example: '000013', description: 'NIP bank code' })
+  @IsString()
+  @IsNotEmpty()
+  bankCode!: string;
+
+  @ApiProperty({ example: '0123456789', description: '10-digit NUBAN' })
+  @IsString()
+  @IsNotEmpty()
+  @Length(10, 10)
+  @Matches(/^\d{10}$/)
+  accountNumber!: string;
+}
+
+export class InitiatePayoutDto {
+  @ApiProperty({
+    example: '10000',
+    description: 'Amount in kobo as a string (e.g. "10000" for NGN 100)',
+  })
+  @IsString()
+  @IsNotEmpty()
+  @Matches(/^\d+$/)
+  amount!: string;
+
+  @ApiProperty({ example: '000013', description: 'NIP bank code' })
+  @IsString()
+  @IsNotEmpty()
+  bankCode!: string;
+
+  @ApiProperty({ example: '0123456789', description: '10-digit NUBAN' })
+  @IsString()
+  @IsNotEmpty()
+  @Length(10, 10)
+  @Matches(/^\d{10}$/)
+  accountNumber!: string;
+
+  @ApiProperty({ example: 'JOHN DOE', description: 'Account name from lookup' })
+  @IsString()
+  @IsNotEmpty()
+  accountName!: string;
+
+  @ApiProperty({ example: 'Project payout', description: 'Transaction remark' })
+  @IsString()
+  @IsNotEmpty()
+  remark!: string;
+}
+
+export class RequeryPayoutDto {
+  @ApiProperty({
+    example: 'SB3YYHDENW_9f9b7a4e-79d6-4c7f-9d2d-0a7b6f037c1e',
+    description: 'Transaction reference returned on initiate',
+  })
+  @IsString()
+  @IsNotEmpty()
+  transactionReference!: string;
+}
