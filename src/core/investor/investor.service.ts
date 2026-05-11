@@ -1,4 +1,4 @@
-﻿import { Injectable, NotFoundException } from '@nestjs/common';
+﻿import { Injectable, Inject, NotFoundException } from '@nestjs/common';
 import { db } from '../../db';
 import {
   investorProfiles,
@@ -9,10 +9,15 @@ import {
 import { eq, desc } from 'drizzle-orm';
 import { UpdatePreferencesDto } from './dto/update-preferences.dto';
 import { SquadService } from '../squad/squad.service';
+import { SquadConfig } from '../../config/config';
+import type { SquadConfigType } from '../../config/config.types';
 
 @Injectable()
 export class InvestorService {
-  constructor(private squadService: SquadService) {}
+  constructor(
+    private squadService: SquadService,
+    @Inject(SquadConfig.KEY) private squadCfg: SquadConfigType,
+  ) {}
 
   async getSummary(userId: string) {
     const allInvestments = await db
@@ -123,5 +128,38 @@ export class InvestorService {
       .where(eq(investorProfiles.userId, userId));
 
     return updated;
+  }
+
+  async getProfile(userId: string) {
+    const [result] = await db
+      .select()
+      .from(investorProfiles)
+      .where(eq(investorProfiles.userId, userId))
+      .leftJoin(users, eq(users.id, investorProfiles.userId));
+
+    if (!result) throw new NotFoundException('Investor profile not found');
+    return result;
+  }
+
+  async getPaymentLink(userId: string) {
+    const [user] = await db
+      .select({ squadVirtualAccountNumber: users.squadVirtualAccountNumber })
+      .from(users)
+      .where(eq(users.id, userId));
+
+    if (!user?.squadVirtualAccountNumber) {
+      throw new NotFoundException('Virtual account not found');
+    }
+
+    const { squadVirtualAccountNumber } = user;
+    const squadBase = this.squadCfg.baseUrl ?? '';
+    const payBase = squadBase.includes('sandbox')
+      ? 'https://sandbox.squadco.com'
+      : 'https://pay.squadco.com';
+
+    return {
+      paymentLink: `${payBase}/${squadVirtualAccountNumber}`,
+      virtualAccountNumber: squadVirtualAccountNumber,
+    };
   }
 }

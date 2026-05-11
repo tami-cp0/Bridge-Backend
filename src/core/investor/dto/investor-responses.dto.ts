@@ -74,6 +74,31 @@ export class WalletResponseDto {
   defaultPoolBalance: number;
 }
 
+export class InvestorUserDto {
+  @ApiProperty({ format: 'uuid' })
+  id: string;
+
+  @ApiProperty({ example: 'Ada Obi' })
+  fullName: string;
+
+  @ApiProperty({ example: 'ada@example.com' })
+  email: string;
+
+  @ApiProperty({ example: '+2348012345678' })
+  phone: string;
+
+  @ApiPropertyOptional({ example: '1234567890' })
+  squadVirtualAccountNumber: string | null;
+}
+
+export class InvestorProfileFullResponseDto {
+  @ApiProperty({ type: InvestorProfileDto })
+  investor_profiles: InvestorProfileDto;
+
+  @ApiPropertyOptional({ type: InvestorUserDto })
+  users: InvestorUserDto | null;
+}
+
 export class InvestmentResponseDto {
   @ApiProperty({ format: 'uuid' })
   id: string;

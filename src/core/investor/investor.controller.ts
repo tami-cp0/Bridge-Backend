@@ -24,7 +24,9 @@ import {
   WalletResponseDto,
   InvestmentResponseDto,
   InvestorProfileDto,
+  InvestorProfileFullResponseDto,
 } from './dto/investor-responses.dto';
+import { PaymentLinkResponseDto } from '../business/dto/business-responses.dto';
 import { NotificationResponseDto } from '../notifications/dto/notification-response.dto';
 
 @ApiTags('investor')
@@ -32,6 +34,30 @@ import { NotificationResponseDto } from '../notifications/dto/notification-respo
 @Controller('investor')
 export class InvestorController {
   constructor(private investorService: InvestorService) {}
+
+  @Get(':userId/profile')
+  @UseGuards(JwtAuthGuard)
+  @ApiParam({ name: 'userId', description: 'Investor user UUID' })
+  @ApiOperation({ summary: 'Get full investor profile joined with user details' })
+  @ApiResponse({ status: 200, type: InvestorProfileFullResponseDto })
+  @ApiResponse({ status: 401, description: 'Unauthorized — missing or invalid token' })
+  @ApiResponse({ status: 404, description: 'Investor profile not found' })
+  getProfile(@Param('userId') userId: string) {
+    return this.investorService.getProfile(userId);
+  }
+
+  @Get(':userId/payment-link')
+  @UseGuards(JwtAuthGuard)
+  @ApiParam({ name: 'userId', description: 'Investor user UUID' })
+  @ApiOperation({
+    summary: 'Get the Squad payment link and virtual account number for wallet top-up',
+  })
+  @ApiResponse({ status: 200, type: PaymentLinkResponseDto })
+  @ApiResponse({ status: 401, description: 'Unauthorized — missing or invalid token' })
+  @ApiResponse({ status: 404, description: 'Virtual account not found' })
+  getPaymentLink(@Param('userId') userId: string) {
+    return this.investorService.getPaymentLink(userId);
+  }
 
   @Get(':userId/summary')
   @UseGuards(JwtAuthGuard)
