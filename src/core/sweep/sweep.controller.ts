@@ -1,13 +1,12 @@
 ﻿import {
   Controller,
   Post,
-  Param,
   Req,
   Headers,
-  UseGuards,
   UnauthorizedException,
   HttpCode,
   Logger,
+  Inject,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -15,17 +14,18 @@ import {
   ApiResponse,
   ApiHeader,
   ApiBody,
-  ApiBearerAuth,
-  ApiParam,
 } from '@nestjs/swagger';
 import type { RawBodyRequest } from '@nestjs/common';
 import { Request } from 'express';
+import * as crypto from 'crypto';
 import { SweepService } from './sweep.service';
 import { SquadService } from '../squad/squad.service';
+import { MonoConfig } from '../../config/config';
+import type { MonoConfigType } from '../../config/config.types';
 import { ReceivedResponseDto } from '../../common/dto/common-responses.dto';
-import { BusinessGuard } from '../../common/guards/business.guard';
-import { CurrentUser } from '../../common/decorators/current-user.decorator';
-import type { JwtPayload } from '../../common/decorators/current-user.decorator';
+import { db } from '../../db';
+import { businessProfiles } from '../../db/schema';
+import { eq } from 'drizzle-orm';
 
 @ApiTags('webhooks')
 @Controller('webhooks')
@@ -35,53 +35,8 @@ export class SweepController {
   constructor(
     private sweepService: SweepService,
     private squadService: SquadService,
+    @Inject(MonoConfig.KEY) private monoCfg: MonoConfigType,
   ) {}
-
-  @Post('repay-full/:listingId')
-  @UseGuards(BusinessGuard)
-  @ApiBearerAuth('JWT')
-  @ApiParam({
-    name: 'listingId',
-    description: 'UUID of the funded listing to repay in full',
-  })
-  @ApiOperation({
-    summary:
-      'Pay off the entire remaining balance on a listing in one transfer â€” releases any locked tranches first, then distributes to investors and closes the deal',
-  })
-  @ApiResponse({
-    status: 201,
-    schema: {
-      type: 'object',
-      properties: {
-        repaid: {
-          type: 'number',
-          example: 3225000,
-          description: 'Amount repaid in kobo',
-        },
-        message: {
-          type: 'string',
-          example: 'â‚¦32,250 repaid. Your listing is now completed.',
-        },
-      },
-    },
-  })
-  @ApiResponse({
-    status: 400,
-    description: 'Listing is not in funded status, or no remaining balance',
-  })
-  @ApiResponse({ status: 401, description: 'Unauthorized' })
-  @ApiResponse({
-    status: 403,
-    description: 'Forbidden â€” caller is not a business account',
-  })
-  @ApiResponse({ status: 404, description: 'Listing not found' })
-  @ApiResponse({ status: 502, description: 'Squad transfer failed' })
-  repayFull(
-    @Param('listingId') listingId: string,
-    @CurrentUser() user: JwtPayload,
-  ) {
-    return this.sweepService.repayFull(listingId, user.userId);
-  }
 
   @Post('squad')
   @HttpCode(200)
@@ -134,6 +89,93 @@ export class SweepController {
 
     const payload = req.body as Record<string, unknown>;
     await this.sweepService.handleSquadWebhook(payload);
+    return { received: true };
+  }
+
+  @Post('mono')
+  @HttpCode(200)
+  @ApiOperation({
+    summary:
+      'Mono income webhook — updates business monthly inflow when Mono income processing completes',
+  })
+  @ApiHeader({
+    name: 'mono-webhook-secret',
+    description: 'Shared secret configured in the Mono dashboard for webhook verification',
+    required: false,
+  })
+  @ApiBody({
+    description:
+      'Mono webhook payload. Handles mono.events.account_income: updates monoAverageMonthlyInflow on the matching business profile.',
+    schema: {
+      type: 'object',
+      properties: {
+        event: { type: 'string', example: 'mono.events.account_income' },
+        event_id: { type: 'string', example: 'evt_12345abcde' },
+        data: {
+          type: 'object',
+          properties: {
+            account: { type: 'string', example: '64ef3...' },
+            income_summary: {
+              type: 'object',
+              properties: {
+                monthly_income: { type: 'number', example: 45000000, description: 'In kobo' },
+                total_income: { type: 'number', example: 45000000 },
+                annual_income: { type: 'number', example: 540000000 },
+                employer: { type: 'string', example: 'Acme Ltd' },
+                income_source_type: { type: 'string', example: 'BANK' },
+              },
+            },
+          },
+        },
+      },
+    },
+  })
+  @ApiResponse({ status: 200, type: ReceivedResponseDto })
+  @ApiResponse({ status: 401, description: 'Invalid webhook secret' })
+  async handleMonoWebhook(
+    @Req() req: RawBodyRequest<Request>,
+    @Headers('mono-webhook-secret') secret: string,
+  ) {
+    const configuredSecret = this.monoCfg.webhookSecret;
+    if (configuredSecret && secret) {
+      try {
+        const valid = crypto.timingSafeEqual(
+          Buffer.from(secret),
+          Buffer.from(configuredSecret),
+        );
+        if (!valid) {
+          this.logger.warn('Invalid Mono webhook secret');
+          throw new UnauthorizedException('Invalid webhook secret');
+        }
+      } catch (e) {
+        if (e instanceof UnauthorizedException) throw e;
+        // timingSafeEqual throws if buffers differ in length
+        this.logger.warn('Invalid Mono webhook secret');
+        throw new UnauthorizedException('Invalid webhook secret');
+      }
+    }
+
+    const payload = req.body as Record<string, unknown>;
+    const event = payload.event as string;
+
+    if (event === 'mono.events.account_income') {
+      const data = payload.data as Record<string, unknown>;
+      const accountId = data?.account as string;
+      const incomeSummary = data?.income_summary as Record<string, unknown>;
+      const monthlyIncome = Number(incomeSummary?.monthly_income ?? 0);
+
+      if (accountId && monthlyIncome > 0) {
+        await db
+          .update(businessProfiles)
+          .set({ monoAverageMonthlyInflow: monthlyIncome, updatedAt: new Date() })
+          .where(eq(businessProfiles.monoAccountId, accountId));
+
+        this.logger.log(
+          `Income updated for account ${accountId}: ${monthlyIncome} kobo/month`,
+        );
+      }
+    }
+
     return { received: true };
   }
 }

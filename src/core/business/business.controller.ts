@@ -16,6 +16,7 @@ import {
   ApiQuery,
 } from '@nestjs/swagger';
 import { BusinessService } from './business.service';
+import { SweepService } from '../sweep/sweep.service';
 import { ConnectBankDto } from './dto/connect-bank.dto';
 import { BusinessGuard } from '../../common/guards/business.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -35,13 +36,16 @@ import { SweepEventResponseDto } from '../listings/dto/listing-responses.dto';
 @ApiBearerAuth('JWT')
 @Controller('business')
 export class BusinessController {
-  constructor(private businessService: BusinessService) {}
+  constructor(
+    private businessService: BusinessService,
+    private sweepService: SweepService,
+  ) {}
 
   @Post('connect-bank')
   @UseGuards(BusinessGuard)
   @ApiOperation({
     summary:
-      'Connect business bank account via Mono — exchanges Mono Connect code, fetches average monthly inflow, and stores it against the profile',
+      'Connect business bank account via Mono — exchanges Mono Connect code and triggers async income analysis. Income is delivered via the mono.events.account_income webhook.',
   })
   @ApiResponse({
     status: 201,
@@ -50,9 +54,10 @@ export class BusinessController {
       properties: {
         connected: { type: 'boolean', example: true },
         averageMonthlyInflow: {
-          type: 'number',
-          example: 2500000,
-          description: 'Average monthly inflow in kobo',
+          nullable: true,
+          example: null,
+          description:
+            'Always null on connect — populated on the business profile once Mono delivers the mono.events.account_income webhook',
         },
       },
     },
@@ -270,5 +275,34 @@ export class BusinessController {
   @ApiResponse({ status: 404, description: 'Business profile not found' })
   getSweepSummary(@Param('userId') userId: string) {
     return this.businessService.getSweepSummary(userId);
+  }
+
+  @Post('repay/:listingId')
+  @UseGuards(BusinessGuard)
+  @ApiParam({ name: 'listingId', description: 'UUID of the funded listing to repay in full' })
+  @ApiOperation({
+    summary:
+      'Pay off the entire remaining balance on a listing in one transfer — releases any locked tranches first, then distributes to investors and closes the deal',
+  })
+  @ApiResponse({
+    status: 201,
+    schema: {
+      type: 'object',
+      properties: {
+        repaid: { type: 'number', example: 3225000, description: 'Amount repaid in kobo' },
+        message: { type: 'string', example: '₦32,250 repaid. Your listing is now completed.' },
+      },
+    },
+  })
+  @ApiResponse({ status: 400, description: 'Listing is not in funded status, or no remaining balance' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Forbidden — caller is not a business account' })
+  @ApiResponse({ status: 404, description: 'Listing not found' })
+  @ApiResponse({ status: 502, description: 'Squad transfer failed' })
+  repayFull(
+    @Param('listingId') listingId: string,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    return this.sweepService.repayFull(listingId, user.userId);
   }
 }

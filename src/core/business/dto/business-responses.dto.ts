@@ -82,6 +82,17 @@ export class BusinessProfileDto {
   })
   bankConnected: boolean;
 
+  @ApiProperty({ example: false })
+  monoLinked: boolean;
+
+  @ApiPropertyOptional({
+    example: 4500000,
+    description:
+      'Mono-verified average monthly bank inflow in kobo — null until the mono.events.account_income webhook fires after connect-bank. Overrides self-reported averageMonthlyRevenue in all listing calculations.',
+    nullable: true,
+  })
+  monoAverageMonthlyInflow: number | null;
+
   @ApiProperty({ example: 1 })
   tier: number;
 

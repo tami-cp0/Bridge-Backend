@@ -24,24 +24,6 @@ export class MonoService {
     });
   }
 
-  // Initiates BVN lookup — if Mono accepts the BVN as valid, the call succeeds silently.
-  // Throws BadRequestException (→ 400) if the BVN is not found or invalid.
-  async verifyBvn(bvn: string): Promise<void> {
-    try {
-      await this.client.post('/v2/lookup/bvn/initiate', { bvn });
-    } catch (err: unknown) {
-      const status = axios.isAxiosError(err) ? err.response?.status : undefined;
-      if (status && status < 500) {
-        throw new BadRequestException('BVN verification failed');
-      }
-      const data = axios.isAxiosError(err) ? err.response?.data : undefined;
-      this.logger.error('Mono BVN verify error', data);
-      throw new InternalServerErrorException(
-        'BVN verification service unavailable',
-      );
-    }
-  }
-
   // Exchanges the Mono Connect code returned by the frontend widget for an account ID.
   async exchangeCode(code: string): Promise<string> {
     try {
@@ -68,49 +50,35 @@ export class MonoService {
     }
   }
 
-  // Returns the average monthly inflow (in kobo) and the history start date for an account.
-  async getAccountIncome(accountId: string): Promise<{
-    averageMonthlyInflow: number;
-    historyStartDate: string;
-  }> {
+  // Triggers Mono's async income analysis for the linked account.
+  // The result is delivered via the mono.events.account_income webhook —
+  // this call always returns data: null immediately.
+  async triggerIncomeProcessing(accountId: string): Promise<void> {
     try {
-      const res = await this.client.get<{
-        data?: { monthlyAmount?: number; period_start?: string };
-        monthlyAmount?: number;
-        period_start?: string;
-      }>(`/v2/accounts/${accountId}/income`);
-      const data = res.data?.data ?? res.data;
-
-      // monthlyAmount is already in kobo from Mono; fall back to 0 if unavailable
-      const averageMonthlyInflow = Number(data?.monthlyAmount ?? 0);
-
-      // Use today if Mono doesn't return a period start date
-      const historyStartDate =
-        data?.period_start ?? new Date().toISOString().split('T')[0];
-
-      return { averageMonthlyInflow, historyStartDate };
+      await this.client.get(`/v2/accounts/${accountId}/income`);
     } catch (err: unknown) {
-      if (
-        err instanceof BadRequestException ||
-        err instanceof InternalServerErrorException
-      ) {
-        throw err;
-      }
-      // Income endpoint may not be available for all account types — return zeros gracefully
       const data = axios.isAxiosError(err) ? err.response?.data : undefined;
-      this.logger.warn(`Mono income fetch failed for ${accountId}`, data);
-      return {
-        averageMonthlyInflow: 0,
-        historyStartDate: new Date().toISOString().split('T')[0],
-      };
+      this.logger.warn(
+        `Income processing trigger failed for account ${accountId}`,
+        data,
+      );
     }
   }
 
-  // Verifies a CAC registration number. Throws BadRequestException if invalid.
+  // Verifies a CAC registration number. Throws BadRequestException if not found.
   async verifyCac(rcNumber: string): Promise<void> {
     try {
-      await this.client.post('/v3/identity/cac', { rc_number: rcNumber });
+      const res = await this.client.get<{
+        data?: unknown[];
+      }>('/v3/lookup/cac', { params: { search: rcNumber, exact: true } });
+
+      if (!res.data?.data?.length) {
+        throw new BadRequestException(
+          'CAC registration number could not be verified',
+        );
+      }
     } catch (err: unknown) {
+      if (err instanceof BadRequestException) throw err;
       const status = axios.isAxiosError(err) ? err.response?.status : undefined;
       if (status && status < 500) {
         throw new BadRequestException(

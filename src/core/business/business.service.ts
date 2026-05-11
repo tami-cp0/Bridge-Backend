@@ -55,8 +55,6 @@ export class BusinessService {
       throw new ConflictException('Bank account already connected');
 
     const accountId = await this.monoService.exchangeCode(code);
-    const { averageMonthlyInflow, historyStartDate } =
-      await this.monoService.getAccountIncome(accountId);
 
     await db
       .update(businessProfiles)
@@ -64,13 +62,15 @@ export class BusinessService {
         bankConnected: true,
         monoAccountId: accountId,
         monoLinked: true,
-        monoAverageMonthlyInflow: averageMonthlyInflow || null,
-        monoHistoryStartDate: historyStartDate,
         updatedAt: new Date(),
       })
       .where(eq(businessProfiles.userId, userId));
 
-    return { connected: true, averageMonthlyInflow };
+    // Fire-and-forget — Mono processes income async and delivers the result
+    // via the mono.events.account_income webhook which updates monoAverageMonthlyInflow
+    void this.monoService.triggerIncomeProcessing(accountId);
+
+    return { connected: true, averageMonthlyInflow: null };
   }
 
   async getStats(userId: string) {
