@@ -32,6 +32,7 @@ export const AppConfig = registerAs('app', () => ({
     10,
   ),
   sweepTolerancePercent: parseFloat(process.env.SWEEP_TOLERANCE_PERCENT ?? '2'),
+  frontendUrl: process.env.FRONTEND_URL,
 }));
 
 export const configurations = [

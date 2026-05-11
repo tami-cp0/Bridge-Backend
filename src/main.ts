@@ -16,6 +16,20 @@ async function bootstrap() {
     }),
   );
 
+  const configService = app.get(ConfigService);
+  const frontendUrl = configService.get<string>('app.frontendUrl');
+  const origins = [
+    'http://localhost:3000',
+    ...(frontendUrl
+      ? frontendUrl.split(',').map((origin) => origin.trim())
+      : []),
+  ].filter(Boolean);
+
+  app.enableCors({
+    origin: origins,
+    credentials: true,
+  });
+
   app.setGlobalPrefix('api/v1');
 
   const config = new DocumentBuilder()
@@ -31,7 +45,7 @@ async function bootstrap() {
   const document = SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('docs', app, document);
 
-  const port = app.get(ConfigService).get<number>('app.port') ?? 3000;
+  const port = configService.get<number>('app.port') ?? 3005;
   await app.listen(port);
 }
 bootstrap().catch((err) => {

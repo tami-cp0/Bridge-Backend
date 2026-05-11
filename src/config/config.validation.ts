@@ -60,6 +60,10 @@ class EnvironmentVariables {
   @IsString()
   @IsOptional()
   SWEEP_TOLERANCE_PERCENT: string;
+
+  @IsString()
+  @IsOptional()
+  FRONTEND_URL: string;
 }
 
 export function validateConfig(configuration: Record<string, unknown>) {
