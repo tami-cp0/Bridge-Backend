@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { sql, eq, and } from 'drizzle-orm';
 import { db } from '../../db';
 import type { Db } from '../../db';
@@ -32,7 +32,9 @@ export class LedgerService {
 
   async credit(input: LedgerEntryInput, tx?: TxOrDb) {
     if (input.amount <= 0) {
-      throw new Error(`Ledger credit amount must be positive: ${input.amount}`);
+      throw new BadRequestException(
+        `Ledger credit amount must be positive: ${input.amount}`,
+      );
     }
     const executor = tx ?? db;
     const [row] = await executor
@@ -52,7 +54,9 @@ export class LedgerService {
 
   async debit(input: LedgerEntryInput, tx?: TxOrDb) {
     if (input.amount <= 0) {
-      throw new Error(`Ledger debit amount must be positive: ${input.amount}`);
+      throw new BadRequestException(
+        `Ledger debit amount must be positive: ${input.amount}`,
+      );
     }
     const executor = tx ?? db;
     const [row] = await executor

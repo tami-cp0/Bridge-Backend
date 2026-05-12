@@ -4,6 +4,7 @@ import {
   Logger,
   BadRequestException,
   InternalServerErrorException,
+  HttpException,
 } from '@nestjs/common';
 import { MonoConfig } from '../../config/config';
 import type { MonoConfigType } from '../../config/config.types';
@@ -32,10 +33,19 @@ export class MonoService {
         data?: { id?: string };
       }>('/v2/accounts/auth', { code });
       const id = res.data?.id ?? res.data?.data?.id;
-      if (!id) throw new Error('No account id in response');
+      if (!id) {
+        throw new InternalServerErrorException(
+          'Bank connection service unavailable',
+        );
+      }
       return id;
     } catch (err: unknown) {
-      if (err instanceof BadRequestException) throw err;
+      if (err instanceof HttpException) {
+        if (err.getStatus() >= 500) {
+          this.logger.error('Mono code exchange error', err);
+        }
+        throw err;
+      }
       const status = axios.isAxiosError(err) ? err.response?.status : undefined;
       if (status && status < 500) {
         throw new BadRequestException(
@@ -78,7 +88,12 @@ export class MonoService {
         );
       }
     } catch (err: unknown) {
-      if (err instanceof BadRequestException) throw err;
+      if (err instanceof HttpException) {
+        if (err.getStatus() >= 500) {
+          this.logger.error('Mono CAC verify error', err);
+        }
+        throw err;
+      }
       const status = axios.isAxiosError(err) ? err.response?.status : undefined;
       if (status && status < 500) {
         throw new BadRequestException(

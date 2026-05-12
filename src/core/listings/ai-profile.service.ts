@@ -1,4 +1,11 @@
-import { Inject, Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  Inject,
+  Injectable,
+  InternalServerErrorException,
+  Logger,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import OpenAI from 'openai';
 import { OpenAiConfig } from '../../config/config';
 import type { OpenAiConfigType } from '../../config/config.types';
@@ -30,6 +37,7 @@ interface ProfileInput {
 
 @Injectable()
 export class AiProfileService {
+  private readonly logger = new Logger(AiProfileService.name);
   private client: OpenAI;
 
   constructor(@Inject(OpenAiConfig.KEY) openAiCfg: OpenAiConfigType) {
@@ -39,23 +47,53 @@ export class AiProfileService {
   }
 
   async generateProfile(input: ProfileInput): Promise<string> {
-    const response = await this.client.chat.completions.create({
-      model: MODEL,
-      max_tokens: 1000,
-      messages: [
-        {
-          role: 'system',
-          content:
-            'You are generating an investment profile for a micro-investment platform called Bridge. Write a clear honest narrative in plain English that a non-financial investor can read and act on in under two minutes. Cover what the business does, how long it has operated, what the revenue history shows, what the capital will be used for, and what the risk signals are. If there are inconsistencies such as self-reported revenue significantly higher than verified inflow, flag them clearly in a separate paragraph. Do not hide negative signals. Do not use financial jargon. Output only the narrative text with no headings or formatting. but it should be well spaced and flow nicely',
-        },
-        {
-          role: 'user',
-          content: this.buildPrompt(input),
-        },
-      ],
-    });
+    try {
+      const response = await this.client.chat.completions.create({
+        model: MODEL,
+        max_tokens: 1000,
+        messages: [
+          {
+            role: 'system',
+            content:
+              'You are generating an investment profile for a micro-investment platform called Bridge. Write a clear honest narrative in plain English that a non-financial investor can read and act on in under two minutes. Cover what the business does, how long it has operated, what the revenue history shows, what the capital will be used for, and what the risk signals are. If there are inconsistencies such as self-reported revenue significantly higher than verified inflow, flag them clearly in a separate paragraph. Do not hide negative signals. Do not use financial jargon. Output only the narrative text with no headings or formatting. but it should be well spaced and flow nicely',
+          },
+          {
+            role: 'user',
+            content: this.buildPrompt(input),
+          },
+        ],
+      });
 
-    return response.choices[0]?.message?.content ?? '';
+      return response.choices[0]?.message?.content ?? '';
+    } catch (err: unknown) {
+      this.throwOpenAiError(err);
+    }
+  }
+
+  private throwOpenAiError(err: unknown): never {
+    const status =
+      typeof err === 'object' && err !== null
+        ? ((err as { status?: number; statusCode?: number }).status ??
+          (err as { statusCode?: number }).statusCode)
+        : undefined;
+
+    if (status && status >= 400 && status < 500) {
+      throw new BadRequestException('AI profile request rejected');
+    }
+    if (status && status === 503) {
+      throw new ServiceUnavailableException('AI profile service unavailable');
+    }
+
+    const message =
+      typeof err === 'object' && err !== null
+        ? (err as { message?: string }).message
+        : String(err);
+
+    this.logger.error('OpenAI profile generation failed', {
+      status: status ?? 'unknown',
+      message,
+    });
+    throw new InternalServerErrorException('AI profile generation failed');
   }
 
   private buildPrompt(input: ProfileInput): string {

@@ -1,4 +1,13 @@
-import { Inject, Injectable, Logger } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Inject,
+  Injectable,
+  InternalServerErrorException,
+  Logger,
+  NotFoundException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { SquadConfig } from '../../config/config';
 import type { SquadConfigType } from '../../config/config.types';
 import axios, { AxiosInstance } from 'axios';
@@ -59,29 +68,33 @@ export class SquadService {
     const lastName =
       nameParts.length > 1 ? nameParts.slice(1).join(' ') : firstName;
 
-    const response = await this.client.post<
-      SquadApiResponse<{
-        virtual_account_number?: string;
-        customer_identifier?: string;
-      }>
-    >('/virtual-account', {
-      first_name: firstName,
-      last_name: lastName,
-      middle_name: 'N/A',
-      mobile_num: phone,
-      dob: '01/01/1990',
-      email,
-      bvn,
-      gender: '1',
-      address: 'Nigeria',
-      customer_identifier: userId,
-    });
+    try {
+      const response = await this.client.post<
+        SquadApiResponse<{
+          virtual_account_number?: string;
+          customer_identifier?: string;
+        }>
+      >('/virtual-account', {
+        first_name: firstName,
+        last_name: lastName,
+        middle_name: 'N/A',
+        mobile_num: phone,
+        dob: '01/01/1990',
+        email,
+        bvn,
+        gender: '1',
+        address: 'Nigeria',
+        customer_identifier: userId,
+      });
 
-    const data = unwrapSquadData(response.data);
-    return {
-      virtualAccountNumber: data.virtual_account_number ?? '',
-      reference: data.customer_identifier ?? userId,
-    };
+      const data = unwrapSquadData(response.data);
+      return {
+        virtualAccountNumber: data.virtual_account_number ?? '',
+        reference: data.customer_identifier ?? userId,
+      };
+    } catch (err: unknown) {
+      this.throwSquadError(err, 'Unable to create virtual account');
+    }
   }
 
   async createBusinessVirtualAccount(
@@ -90,23 +103,27 @@ export class SquadService {
     bvn: string,
     phone: string,
   ): Promise<{ virtualAccountNumber: string; reference: string }> {
-    const response = await this.client.post<
-      SquadApiResponse<{
-        virtual_account_number?: string;
-        customer_identifier?: string;
-      }>
-    >('/virtual-account/business', {
-      business_name: businessName,
-      mobile_num: phone,
-      bvn,
-      customer_identifier: businessId,
-    });
+    try {
+      const response = await this.client.post<
+        SquadApiResponse<{
+          virtual_account_number?: string;
+          customer_identifier?: string;
+        }>
+      >('/virtual-account/business', {
+        business_name: businessName,
+        mobile_num: phone,
+        bvn,
+        customer_identifier: businessId,
+      });
 
-    const data = unwrapSquadData(response.data);
-    return {
-      virtualAccountNumber: data.virtual_account_number ?? '',
-      reference: data.customer_identifier ?? businessId,
-    };
+      const data = unwrapSquadData(response.data);
+      return {
+        virtualAccountNumber: data.virtual_account_number ?? '',
+        reference: data.customer_identifier ?? businessId,
+      };
+    } catch (err: unknown) {
+      this.throwSquadError(err, 'Unable to create business virtual account');
+    }
   }
 
   // Returns every credit/debit Squad has recorded against this customer's VA.
@@ -114,46 +131,54 @@ export class SquadService {
   async getCustomerTransactions(
     customerIdentifier: string,
   ): Promise<SquadCustomerTransaction[]> {
-    const response = await this.client.get<
-      SquadApiResponse<
-        Array<{
-          transaction_reference?: string;
-          virtual_account_number?: string;
-          principal_amount?: string | number;
-          settled_amount?: string | number;
-          fee_charged?: string | number;
-          transaction_date?: string;
-          transaction_indicator?: string;
-          remarks?: string;
-          currency?: string;
-          frozen_transaction?: unknown;
-        }>
-      >
-    >(`/virtual-account/customer/transactions/${customerIdentifier}`);
+    try {
+      const response = await this.client.get<
+        SquadApiResponse<
+          Array<{
+            transaction_reference?: string;
+            virtual_account_number?: string;
+            principal_amount?: string | number;
+            settled_amount?: string | number;
+            fee_charged?: string | number;
+            transaction_date?: string;
+            transaction_indicator?: string;
+            remarks?: string;
+            currency?: string;
+            frozen_transaction?: unknown;
+          }>
+        >
+      >(`/virtual-account/customer/transactions/${customerIdentifier}`);
 
-    const rows = unwrapSquadData(response.data) ?? [];
-    return rows.map((r) => ({
-      transactionReference: r.transaction_reference ?? '',
-      virtualAccountNumber: r.virtual_account_number ?? '',
-      // Squad returns Naira strings like "30000.00"; convert to kobo
-      principalAmount: Math.round(Number(r.principal_amount ?? 0) * 100),
-      settledAmount: Math.round(Number(r.settled_amount ?? 0) * 100),
-      feeCharged: Math.round(Number(r.fee_charged ?? 0) * 100),
-      transactionDate: r.transaction_date ?? '',
-      transactionIndicator: r.transaction_indicator ?? 'C',
-      remarks: r.remarks,
-      currency: r.currency,
-      frozen: r.frozen_transaction != null,
-    }));
+      const rows = unwrapSquadData(response.data) ?? [];
+      return rows.map((r) => ({
+        transactionReference: r.transaction_reference ?? '',
+        virtualAccountNumber: r.virtual_account_number ?? '',
+        // Squad returns Naira strings like "30000.00"; convert to kobo
+        principalAmount: Math.round(Number(r.principal_amount ?? 0) * 100),
+        settledAmount: Math.round(Number(r.settled_amount ?? 0) * 100),
+        feeCharged: Math.round(Number(r.fee_charged ?? 0) * 100),
+        transactionDate: r.transaction_date ?? '',
+        transactionIndicator: r.transaction_indicator ?? 'C',
+        remarks: r.remarks,
+        currency: r.currency,
+        frozen: r.frozen_transaction != null,
+      }));
+    } catch (err: unknown) {
+      this.throwSquadError(err, 'Unable to load customer transactions');
+    }
   }
 
   // Total of the merchant wallet (the actual escrow). Returned in kobo.
   async getMerchantBalance(): Promise<number> {
-    const response = await this.client.get<
-      SquadApiResponse<{ balance?: number | string }>
-    >('/merchant/balance', { params: { currency_id: 'NGN' } });
-    const data = unwrapSquadData(response.data);
-    return Number(data.balance ?? 0);
+    try {
+      const response = await this.client.get<
+        SquadApiResponse<{ balance?: number | string }>
+      >('/merchant/balance', { params: { currency_id: 'NGN' } });
+      const data = unwrapSquadData(response.data);
+      return Number(data.balance ?? 0);
+    } catch (err: unknown) {
+      this.throwSquadError(err, 'Unable to load merchant balance');
+    }
   }
 
   async initiateTransfer(
@@ -168,42 +193,50 @@ export class SquadService {
     responseDescription: string;
     status: string;
   }> {
-    const response = await this.client.post<
-      SquadApiResponse<{
-        transaction_reference?: string;
-        response_description?: string;
-      }>
-    >('/payout/transfer', {
-      transaction_reference: reference,
-      amount: String(amount),
-      bank_code: bankCode,
-      account_number: accountNumber,
-      account_name: accountName,
-      currency_id: 'NGN',
-      remark: narration,
-    });
-    const data = unwrapSquadData(response.data);
-    const responseDescription = String(data.response_description ?? '');
-    return {
-      transactionReference: data.transaction_reference ?? reference,
-      responseDescription,
-      status: this.normalizeTransferStatus(responseDescription),
-    };
+    try {
+      const response = await this.client.post<
+        SquadApiResponse<{
+          transaction_reference?: string;
+          response_description?: string;
+        }>
+      >('/payout/transfer', {
+        transaction_reference: reference,
+        amount: String(amount),
+        bank_code: bankCode,
+        account_number: accountNumber,
+        account_name: accountName,
+        currency_id: 'NGN',
+        remark: narration,
+      });
+      const data = unwrapSquadData(response.data);
+      const responseDescription = String(data.response_description ?? '');
+      return {
+        transactionReference: data.transaction_reference ?? reference,
+        responseDescription,
+        status: this.normalizeTransferStatus(responseDescription),
+      };
+    } catch (err: unknown) {
+      this.throwSquadError(err, 'Unable to initiate payout');
+    }
   }
 
   async lookupAccount(
     bankCode: string,
     accountNumber: string,
   ): Promise<{ accountName: string }> {
-    const response = await this.client.post<
-      SquadApiResponse<{ account_name?: string }>
-    >('/payout/account/lookup', {
-      bank_code: bankCode,
-      account_number: accountNumber,
-    });
+    try {
+      const response = await this.client.post<
+        SquadApiResponse<{ account_name?: string }>
+      >('/payout/account/lookup', {
+        bank_code: bankCode,
+        account_number: accountNumber,
+      });
 
-    const data = unwrapSquadData(response.data);
-    return { accountName: String(data.account_name ?? '') };
+      const data = unwrapSquadData(response.data);
+      return { accountName: String(data.account_name ?? '') };
+    } catch (err: unknown) {
+      this.throwSquadError(err, 'Unable to lookup bank account');
+    }
   }
 
   async requeryTransfer(reference: string): Promise<{
@@ -212,24 +245,28 @@ export class SquadService {
     status: string;
     raw: Record<string, unknown>;
   }> {
-    const response = await this.client.post<
-      SquadApiResponse<Record<string, unknown>>
-    >('/payout/requery', {
-      transaction_reference: reference,
-    });
+    try {
+      const response = await this.client.post<
+        SquadApiResponse<Record<string, unknown>>
+      >('/payout/requery', {
+        transaction_reference: reference,
+      });
 
-    const data = unwrapSquadData(response.data) ?? {};
-    const rawDesc = data.response_description;
-    const responseDescription = typeof rawDesc === 'string' ? rawDesc : '';
-    const refValue =
-      (data.transaction_reference as string | undefined) ?? reference;
+      const data = unwrapSquadData(response.data) ?? {};
+      const rawDesc = data.response_description;
+      const responseDescription = typeof rawDesc === 'string' ? rawDesc : '';
+      const refValue =
+        (data.transaction_reference as string | undefined) ?? reference;
 
-    return {
-      transactionReference: refValue,
-      responseDescription,
-      status: this.normalizeTransferStatus(responseDescription),
-      raw: data,
-    };
+      return {
+        transactionReference: refValue,
+        responseDescription,
+        status: this.normalizeTransferStatus(responseDescription),
+        raw: data,
+      };
+    } catch (err: unknown) {
+      this.throwSquadError(err, 'Unable to requery payout');
+    }
   }
 
   // Sandbox only — simulates an incoming payment to a VA. In production this
@@ -238,10 +275,14 @@ export class SquadService {
     virtualAccountNumber: string,
     amount: number,
   ): Promise<void> {
-    await this.client.post('/virtual-account/simulate/payment', {
-      virtual_account_number: virtualAccountNumber,
-      amount: String(amount),
-    });
+    try {
+      await this.client.post('/virtual-account/simulate/payment', {
+        virtual_account_number: virtualAccountNumber,
+        amount: String(amount),
+      });
+    } catch (err: unknown) {
+      this.throwSquadError(err, 'Unable to simulate payment');
+    }
   }
 
   // Squad's HMAC-SHA512 signature; timingSafeEqual prevents timing attacks
@@ -276,5 +317,50 @@ export class SquadService {
       return 'pending';
     }
     return v;
+  }
+
+  private throwSquadError(err: unknown, fallbackMessage: string): never {
+    const status = axios.isAxiosError(err) ? err.response?.status : undefined;
+    const data = axios.isAxiosError(err) ? err.response?.data : undefined;
+    const extracted = this.extractSquadMessage(data);
+    const message = extracted ?? fallbackMessage;
+
+    if (status === 401) {
+      throw new UnauthorizedException('Payment provider unauthorized');
+    }
+    if (status === 403) {
+      throw new ForbiddenException('Payment provider forbidden');
+    }
+    if (status === 404) {
+      throw new NotFoundException('Payment provider resource not found');
+    }
+    if (status && status < 500) {
+      throw new BadRequestException(message);
+    }
+
+    this.logger.error('Squad API error', {
+      status: status ?? 'unknown',
+      message,
+    });
+    throw new InternalServerErrorException('Payment service unavailable');
+  }
+
+  private extractSquadMessage(data: unknown): string | undefined {
+    if (typeof data === 'string') {
+      return data;
+    }
+    if (!data || typeof data !== 'object') {
+      return undefined;
+    }
+    const record = data as Record<string, unknown>;
+    const nested = record.data as Record<string, unknown> | undefined;
+    const message = record.message ?? nested?.message;
+    if (Array.isArray(message)) {
+      return message.filter((m) => typeof m === 'string').join('; ');
+    }
+    if (typeof message === 'string') {
+      return message;
+    }
+    return undefined;
   }
 }

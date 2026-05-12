@@ -3,6 +3,7 @@ import { ValidationPipe } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { ConfigService } from '@nestjs/config';
 import { AppModule } from './app.module';
+import { AllExceptionsFilter } from './common/filter/all-exceptions.filter';
 
 async function bootstrap() {
   // rawBody: true is required so the Squad webhook controller can verify HMAC signatures
@@ -15,6 +16,8 @@ async function bootstrap() {
       transform: true, // auto-cast query params to their DTO types (e.g. string → number)
     }),
   );
+
+  app.useGlobalFilters(new AllExceptionsFilter());
 
   const configService = app.get(ConfigService);
   const frontendUrl = configService.get<string>('app.frontendUrl');

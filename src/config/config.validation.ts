@@ -1,3 +1,4 @@
+import { BadRequestException } from '@nestjs/common';
 import { plainToInstance } from 'class-transformer';
 import {
   IsNotEmpty,
@@ -76,7 +77,7 @@ export function validateConfig(configuration: Record<string, unknown>) {
       .flatMap((err) => Object.values(err.constraints || {}))
       .join('\n');
 
-    throw new Error(`Config validation failed:\n${formatted}`);
+    throw new BadRequestException(`Config validation failed:\n${formatted}`);
   }
 
   return finalConfig;
