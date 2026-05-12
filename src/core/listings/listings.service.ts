@@ -39,33 +39,29 @@ const STANDING_REDUCTIONS: Record<BridgeStanding, number> = {
 };
 
 // Per-tier gates: revenue floor, max capital as a multiple of avg monthly revenue,
-// longest allowed timeline, and minimum investor ticket size
+// and longest allowed timeline
 const TIER_CONFIG: Record<
   number,
   {
     minRevenueKobo: number;
     revenueMultiple: number;
     maxTimelineMonths: number;
-    minInvestmentKobo: number;
   }
 > = {
   1: {
     minRevenueKobo: 30_000_000,
     revenueMultiple: 1.5,
     maxTimelineMonths: 18,
-    minInvestmentKobo: 500_000,
   },
   2: {
     minRevenueKobo: 200_000_000,
     revenueMultiple: 2.0,
     maxTimelineMonths: 24,
-    minInvestmentKobo: 2_500_000,
   },
   3: {
     minRevenueKobo: 1_000_000_000,
     revenueMultiple: 2.0,
     maxTimelineMonths: 24,
-    minInvestmentKobo: 10_000_000,
   },
 };
 
@@ -449,7 +445,9 @@ export class ListingsService {
       db.select().from(tranches).where(eq(tranches.listingId, id)),
       result.business_profiles?.userId
         ? db
-            .select({ squadVirtualAccountNumber: users.squadVirtualAccountNumber })
+            .select({
+              squadVirtualAccountNumber: users.squadVirtualAccountNumber,
+            })
             .from(users)
             .where(eq(users.id, result.business_profiles.userId))
             .then(([u]) => u ?? null)

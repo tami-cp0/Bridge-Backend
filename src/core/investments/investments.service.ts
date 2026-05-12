@@ -21,11 +21,7 @@ import { LedgerService } from '../ledger/ledger.service';
 import { CreateInvestmentDto } from './dto/create-investment.dto';
 import { v4 as uuidv4 } from 'uuid';
 
-const TIER_MIN_INVESTMENT_KOBO: Record<number, number> = {
-  1: 500_000, // ₦5,000
-  2: 2_500_000, // ₦25,000
-  3: 10_000_000, // ₦100,000
-};
+const MIN_INVESTMENT_KOBO = 500_000; // ₦5,000 platform minimum for all tiers
 
 const DEFAULT_POOL_RATE = 0.04; // 4% of every investment held as a default protection pool
 
@@ -53,12 +49,11 @@ export class InvestmentsService {
       throw new BadRequestException('Listing is not active');
 
     const [bp] = await db
-      .select({ tier: businessProfiles.tier, userId: businessProfiles.userId })
+      .select({ userId: businessProfiles.userId })
       .from(businessProfiles)
       .where(eq(businessProfiles.id, listing.businessId));
 
-    const minInvestmentKobo =
-      TIER_MIN_INVESTMENT_KOBO[bp?.tier ?? 1] ?? TIER_MIN_INVESTMENT_KOBO[1];
+    const minInvestmentKobo = MIN_INVESTMENT_KOBO;
     const minInvestmentNaira = (minInvestmentKobo / 100).toLocaleString();
     if (dto.amountCommitted < minInvestmentKobo) {
       throw new BadRequestException(
