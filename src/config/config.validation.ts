@@ -27,12 +27,6 @@ class EnvironmentVariables {
   @IsNotEmpty({ message: 'SQUAD_BASE_URL is required and cannot be empty' })
   SQUAD_BASE_URL: string;
 
-  @IsString({ message: 'SQUAD_ESCROW_ACCOUNT must be a string' })
-  @IsNotEmpty({
-    message: 'SQUAD_ESCROW_ACCOUNT is required and cannot be empty',
-  })
-  SQUAD_ESCROW_ACCOUNT: string;
-
   @IsString({ message: 'SQUAD_MERCHANT_ID must be a string' })
   @IsNotEmpty({
     message: 'SQUAD_MERCHANT_ID is required and cannot be empty',

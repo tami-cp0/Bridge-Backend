@@ -19,7 +19,7 @@ describe('SquadService sandbox API usage', () => {
     const config: SquadConfigType = {
       baseUrl: sandboxBaseUrl,
       secretKey: 'sandbox_sk_test',
-      escrowAccount: '1234567890',
+      merchantId: 'SBNTEST',
     };
 
     return new SquadService(config);
@@ -47,7 +47,6 @@ describe('SquadService sandbox API usage', () => {
       '22123456789',
       '08012345678',
       'test@example.com',
-      '0123456789',
     );
 
     expect(axios.create).toHaveBeenCalledWith(
@@ -85,7 +84,6 @@ describe('SquadService sandbox API usage', () => {
       'Acme Bakery',
       '22123456789',
       '08012345678',
-      '0123456789',
     );
 
     expect(axios.create).toHaveBeenCalledWith(

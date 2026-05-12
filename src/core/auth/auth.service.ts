@@ -70,12 +70,14 @@ export class AuthService {
 
     await db.insert(bridgeRatings).values({ businessId: bp.id });
 
+    // beneficiaryAccount is stored on the user record as their withdrawal
+    // destination; it is intentionally not passed to Squad, so deposits stay
+    // in the merchant wallet (escrow) instead of auto-settling to GTBank.
     const squad = await this.squadService.createBusinessVirtualAccount(
       user.id,
       dto.businessName,
       dto.bvn,
       dto.phone,
-      dto.beneficiaryAccount,
     );
 
     await db
@@ -125,13 +127,14 @@ export class AuthService {
       returnTimelinePreference: dto.returnTimelinePreference ?? null,
     });
 
+    // Same as business above: store beneficiaryAccount on the user row for
+    // withdrawals, but don't pass it to Squad.
     const squad = await this.squadService.createVirtualAccount(
       user.id,
       dto.fullName,
       dto.bvn,
       dto.phone,
       dto.email,
-      dto.beneficiaryAccount,
     );
 
     await db

@@ -12,7 +12,6 @@ export const JwtConfig = registerAs('jwt', () => ({
 export const SquadConfig = registerAs('squad', () => ({
   secretKey: process.env.SQUAD_SECRET_KEY,
   baseUrl: process.env.SQUAD_BASE_URL,
-  escrowAccount: process.env.SQUAD_ESCROW_ACCOUNT,
   merchantId: process.env.SQUAD_MERCHANT_ID,
 }));
 

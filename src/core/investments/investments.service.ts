@@ -1,9 +1,7 @@
-﻿import {
-  Inject,
+import {
   Injectable,
   NotFoundException,
   BadRequestException,
-  BadGatewayException,
   Logger,
 } from '@nestjs/common';
 import { db } from '../../db';
@@ -19,8 +17,7 @@ import {
 } from '../../db/schema';
 import { eq, and } from 'drizzle-orm';
 import { SquadService } from '../squad/squad.service';
-import { SquadConfig } from '../../config/config';
-import type { SquadConfigType } from '../../config/config.types';
+import { LedgerService } from '../ledger/ledger.service';
 import { CreateInvestmentDto } from './dto/create-investment.dto';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -32,17 +29,18 @@ const TIER_MIN_INVESTMENT_KOBO: Record<number, number> = {
 
 const DEFAULT_POOL_RATE = 0.04; // 4% of every investment held as a default protection pool
 
+// GTBank settlement default. Beneficiary accounts collected at signup are
+// GTBank NUBANs; this code maps to GTBank for /payout/transfer.
+const SETTLEMENT_BANK_CODE = '058';
+
 @Injectable()
 export class InvestmentsService {
   private readonly logger = new Logger(InvestmentsService.name);
-  private readonly escrowAccount: string;
 
   constructor(
     private squadService: SquadService,
-    @Inject(SquadConfig.KEY) squadCfg: SquadConfigType,
-  ) {
-    this.escrowAccount = squadCfg.escrowAccount ?? 'ESCROW_ACCOUNT';
-  }
+    private ledgerService: LedgerService,
+  ) {}
 
   async createInvestment(investorUserId: string, dto: CreateInvestmentDto) {
     const [listing] = await db
@@ -55,7 +53,7 @@ export class InvestmentsService {
       throw new BadRequestException('Listing is not active');
 
     const [bp] = await db
-      .select({ tier: businessProfiles.tier })
+      .select({ tier: businessProfiles.tier, userId: businessProfiles.userId })
       .from(businessProfiles)
       .where(eq(businessProfiles.id, listing.businessId));
 
@@ -64,7 +62,7 @@ export class InvestmentsService {
     const minInvestmentNaira = (minInvestmentKobo / 100).toLocaleString();
     if (dto.amountCommitted < minInvestmentKobo) {
       throw new BadRequestException(
-        `Minimum investment for this listing is â‚¦${minInvestmentNaira}`,
+        `Minimum investment for this listing is ₦${minInvestmentNaira}`,
       );
     }
 
@@ -74,7 +72,7 @@ export class InvestmentsService {
       throw new BadRequestException('Amount exceeds remaining unfunded amount');
     }
 
-    // 4% is held as a default protection pool â€” it does not reduce the investor's ownership share.
+    // 4% is held as a default protection pool — it does not reduce the investor's ownership share.
     // Share is based on gross commitment so all shares sum to 100% and sweeps distribute correctly.
     const defaultPoolContribution = Math.floor(
       dto.amountCommitted * DEFAULT_POOL_RATE,
@@ -85,26 +83,17 @@ export class InvestmentsService {
       (sharePercent / 100) * (listing.totalReturnAmount ?? 0),
     );
 
-    const [investorUser] = await db
-      .select({ squadVirtualAccountNumber: users.squadVirtualAccountNumber })
-      .from(users)
-      .where(eq(users.id, investorUserId));
-
-    if (!investorUser?.squadVirtualAccountNumber) {
-      throw new BadRequestException('Investor virtual account not found');
+    // Investor must already have the funds in their internal wallet (i.e.
+    // deposited into their VA → credited to their ledger).
+    const investorBalance =
+      await this.ledgerService.getAvailableBalance(investorUserId);
+    if (investorBalance < dto.amountCommitted) {
+      throw new BadRequestException(
+        `Insufficient wallet balance. Available: ₦${(investorBalance / 100).toLocaleString('en-NG')}`,
+      );
     }
 
     const ref = `inv-${uuidv4()}`;
-    try {
-      await this.squadService.transferBetweenVirtualAccounts(
-        investorUser.squadVirtualAccountNumber,
-        this.escrowAccount,
-        dto.amountCommitted,
-        ref,
-      );
-    } catch {
-      throw new BadGatewayException('Squad transfer failed');
-    }
 
     const [investment] = await db
       .insert(investments)
@@ -121,8 +110,20 @@ export class InvestmentsService {
       })
       .returning();
 
-    const newTotalCommitted =
-      (listing.totalCommitted ?? 0) + dto.amountCommitted;
+    // Debit the investor's ledger — their share of the escrow is now locked
+    // against this investment.
+    await this.ledgerService.debit({
+      userId: investorUserId,
+      amount: dto.amountCommitted,
+      purpose: 'investment_commit',
+      referenceId: investment.id,
+      referenceType: 'investment',
+      squadTransactionReference: ref,
+    });
+
+    const oldTotalCommitted = listing.totalCommitted ?? 0;
+    const capitalRequested = listing.capitalRequested ?? 0;
+    const newTotalCommitted = oldTotalCommitted + dto.amountCommitted;
     const newInvestorCount = (listing.investorCount ?? 0) + 1;
 
     await db
@@ -134,15 +135,30 @@ export class InvestmentsService {
       })
       .where(eq(listings.id, dto.listingId));
 
-    // If this investment fills the listing, transition it to 'funded' and release tranche 1
-    if (newTotalCommitted >= (listing.capitalRequested ?? 0)) {
+    // 50% milestone — only fires when crossing the threshold
+    if (
+      capitalRequested > 0 &&
+      oldTotalCommitted < capitalRequested / 2 &&
+      newTotalCommitted >= capitalRequested / 2 &&
+      newTotalCommitted < capitalRequested &&
+      bp?.userId
+    ) {
+      await db.insert(notifications).values({
+        userId: bp.userId,
+        title: 'Listing 50% funded!',
+        body: `Your listing has reached 50% of its funding goal (₦${(newTotalCommitted / 100).toLocaleString('en-NG')}).`,
+      });
+    }
+
+    // If this investment fills the listing, fund it and release tranche 1
+    if (newTotalCommitted >= capitalRequested) {
       await this.fundListing(dto.listingId, listing);
     }
 
     await db.insert(notifications).values({
       userId: investorUserId,
       title: 'Investment confirmed',
-      body: `Your investment of â‚¦${dto.amountCommitted / 100} has been committed to the listing.`,
+      body: `Your investment of ₦${(dto.amountCommitted / 100).toLocaleString('en-NG')} has been committed to the listing.`,
     });
 
     return investment;
@@ -194,45 +210,66 @@ export class InvestmentsService {
         and(eq(tranches.listingId, listingId), eq(tranches.trancheNumber, 1)),
       );
 
-    if (tranche1 && tranche1.status === 'locked') {
-      const [bp] = await db
-        .select({ userId: businessProfiles.userId })
-        .from(businessProfiles)
-        .where(eq(businessProfiles.id, listing.businessId));
+    if (!tranche1 || tranche1.status !== 'locked') return;
 
-      const [busUser] = await db
-        .select({ squadVirtualAccountNumber: users.squadVirtualAccountNumber })
-        .from(users)
-        .where(eq(users.id, bp.userId));
+    const [bp] = await db
+      .select({ userId: businessProfiles.userId })
+      .from(businessProfiles)
+      .where(eq(businessProfiles.id, listing.businessId));
 
-      const trancheRef = `tranche1-${uuidv4()}`;
-      try {
-        await this.squadService.transferBetweenVirtualAccounts(
-          this.escrowAccount,
-          busUser.squadVirtualAccountNumber!,
-          tranche1.amount,
-          trancheRef,
-        );
-      } catch (err) {
-        this.logger.warn(
-          `Tranche 1 transfer failed for listing ${listingId}: ${String(err)}`,
-        );
-      }
+    if (!bp) return;
 
-      await db
-        .update(tranches)
-        .set({
-          status: 'released',
-          releasedAt: new Date(),
-          squadTransferReference: trancheRef,
-        })
-        .where(eq(tranches.id, tranche1.id));
+    const [busUser] = await db
+      .select()
+      .from(users)
+      .where(eq(users.id, bp.userId));
 
-      await db.insert(notifications).values({
-        userId: bp.userId,
-        title: 'Listing funded!',
-        body: `Your listing has been fully funded. Tranche 1 (â‚¦${tranche1.amount / 100}) has been released to your account.`,
-      });
+    if (!busUser?.beneficiaryAccount) {
+      this.logger.error(
+        `Cannot release tranche 1 for listing ${listingId}: business has no beneficiary account`,
+      );
+      return;
     }
+
+    const trancheRef = `tranche1-${tranche1.id}`;
+    let status = 'failed';
+    try {
+      const result = await this.squadService.initiateTransfer(
+        tranche1.amount,
+        SETTLEMENT_BANK_CODE,
+        busUser.beneficiaryAccount,
+        busUser.fullName,
+        trancheRef,
+        'Tranche 1 release',
+      );
+      status = result.status;
+    } catch (err) {
+      this.logger.error(
+        `Tranche 1 payout failed for listing ${listingId}: ${String(err)}`,
+      );
+      return;
+    }
+
+    if (status === 'failed' || status === 'reversed') {
+      this.logger.error(
+        `Tranche 1 payout was not successful (${status}) for listing ${listingId}`,
+      );
+      return;
+    }
+
+    await db
+      .update(tranches)
+      .set({
+        status: 'released',
+        releasedAt: new Date(),
+        squadTransferReference: trancheRef,
+      })
+      .where(eq(tranches.id, tranche1.id));
+
+    await db.insert(notifications).values({
+      userId: bp.userId,
+      title: 'Listing funded!',
+      body: `Your listing has been fully funded. Tranche 1 (₦${(tranche1.amount / 100).toLocaleString('en-NG')}) has been released to your bank account.`,
+    });
   }
 }

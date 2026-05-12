@@ -38,9 +38,15 @@ export class PayoutsController {
   }
 
   @Post('transfer')
-  @ApiOperation({ summary: 'Initiate a bank payout' })
+  @ApiOperation({
+    summary: 'Initiate a bank payout',
+    description:
+      'Debits the caller\'s internal ledger balance and calls Squad /payout/transfer. ' +
+      'The ledger debit and payout record are written atomically in a DB transaction before ' +
+      'the Squad API is called. If Squad fails or returns a terminal status the debit is reversed.',
+  })
   @ApiResponse({ status: 201, type: InitiatePayoutResponseDto })
-  @ApiResponse({ status: 400, description: 'Validation error or bad request' })
+  @ApiResponse({ status: 400, description: 'Validation error, negative amount, or insufficient internal ledger balance' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   initiate(@CurrentUser() user: JwtPayload, @Body() dto: InitiatePayoutDto) {
     return this.payoutsService.initiatePayout(user, dto);

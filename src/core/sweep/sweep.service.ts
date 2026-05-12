@@ -1,13 +1,9 @@
-﻿import {
-  Inject,
+import {
   Injectable,
   Logger,
   NotFoundException,
   BadRequestException,
-  BadGatewayException,
 } from '@nestjs/common';
-import { SquadConfig } from '../../config/config';
-import type { SquadConfigType } from '../../config/config.types';
 import { db } from '../../db';
 import {
   users,
@@ -21,6 +17,7 @@ import {
 } from '../../db/schema';
 import { eq, and, or, count } from 'drizzle-orm';
 import { SquadService } from '../squad/squad.service';
+import { LedgerService } from '../ledger/ledger.service';
 import { DynamicSweepService } from './dynamic-sweep.service';
 import { BridgeRatingService } from '../bridge-rating/bridge-rating.service';
 import { v4 as uuidv4 } from 'uuid';
@@ -28,24 +25,22 @@ import { v4 as uuidv4 } from 'uuid';
 @Injectable()
 export class SweepService {
   private readonly logger = new Logger(SweepService.name);
-  private readonly escrowAccount: string;
 
   constructor(
     private squadService: SquadService,
     private dynamicSweepService: DynamicSweepService,
     private bridgeRatingService: BridgeRatingService,
-    @Inject(SquadConfig.KEY) squadCfg: SquadConfigType,
-  ) {
-    this.escrowAccount = squadCfg.escrowAccount ?? 'ESCROW_ACCOUNT';
-  }
+    private ledgerService: LedgerService,
+  ) {}
 
-  // Entry point from the webhook controller; only processes successful payment events
+  // Entry point from the webhook controller. Squad fires this when any VA we
+  // own receives a payment (real or simulated). Funds land in the merchant
+  // wallet; we record an internal credit for whoever owns the VA.
   async handleSquadWebhook(payload: Record<string, unknown>) {
-    // Squad uses capital "Event" for card/transfer payments; VA payments have no event type but carry channel: "virtual-account"
     const eventType = (payload.Event ?? payload.event) as string | undefined;
     const channel = payload.channel as string | undefined;
     this.logger.log(
-      `Squad webhook received â€” Event: ${eventType}, channel: ${channel}`,
+      `Squad webhook received — Event: ${eventType}, channel: ${channel}`,
     );
 
     const isPayment =
@@ -64,13 +59,19 @@ export class SweepService {
     const transactionRef = (data.transaction_reference ??
       data.TransactionRef ??
       data.reference) as string;
-    // VA webhooks use principal_amount; fallback covers other payment types
+    // VA webhooks send principal_amount (in kobo); other payment channels use amount
     const amount = Number(data.principal_amount ?? data.amount ?? 0);
 
     if (!virtualAccountNumber || !transactionRef) {
       this.logger.warn(
-        'Missing virtualAccountNumber or transactionRef in webhook',
+        'Missing virtual_account_number or transaction_reference in webhook',
       );
+      return;
+    }
+
+    // Idempotency — if this Squad ref already produced a ledger entry, skip.
+    if (await this.ledgerService.hasEntryForSquadReference(transactionRef)) {
+      this.logger.log(`Duplicate webhook ignored: ${transactionRef}`);
       return;
     }
 
@@ -79,24 +80,45 @@ export class SweepService {
       .from(users)
       .where(eq(users.squadVirtualAccountNumber, virtualAccountNumber));
 
-    if (!user) return;
-    if (user.userType !== 'business') return;
-
-    // Idempotency check
-    const existing = await db
-      .select({ id: sweepEvents.id })
-      .from(sweepEvents)
-      .where(eq(sweepEvents.squadWebhookReference, transactionRef));
-
-    if (existing.length > 0) {
-      this.logger.log(`Duplicate webhook ignored: ${transactionRef}`);
+    if (!user) {
+      this.logger.warn(
+        `Webhook for unknown VA ${virtualAccountNumber} — ignoring`,
+      );
       return;
     }
 
+    if (amount <= 0) return;
+
+    // Always credit the recipient for the incoming money. This is what makes
+    // the merchant wallet's escrow allocable per user.
+    await this.ledgerService.credit({
+      userId: user.id,
+      amount,
+      purpose: 'deposit',
+      squadTransactionReference: transactionRef,
+    });
+
+    await db.insert(notifications).values({
+      userId: user.id,
+      title: 'Deposit received',
+      body: `₦${(amount / 100).toLocaleString('en-NG')} was credited to your wallet.`,
+    });
+
+    // For businesses with an active listing, the deposit also triggers a sweep.
+    if (user.userType === 'business') {
+      await this.processBusinessSweep(user.id, amount, transactionRef);
+    }
+  }
+
+  private async processBusinessSweep(
+    businessUserId: string,
+    incomingAmount: number,
+    transactionRef: string,
+  ) {
     const [bp] = await db
       .select()
       .from(businessProfiles)
-      .where(eq(businessProfiles.userId, user.id));
+      .where(eq(businessProfiles.userId, businessUserId));
 
     if (!bp) return;
 
@@ -113,12 +135,15 @@ export class SweepService {
     if (!activeListing) return;
 
     const { sweepAmount: rawSweep, sweepPercent } =
-      await this.dynamicSweepService.calculateSweep(activeListing.id, amount);
+      await this.dynamicSweepService.calculateSweep(
+        activeListing.id,
+        incomingAmount,
+      );
 
     const totalSwept = activeListing.totalSwept ?? 0;
     const totalReturnAmount = activeListing.totalReturnAmount ?? 0;
     const remaining = totalReturnAmount - totalSwept;
-    // Cap the sweep at what's actually still owed so we never over-collect
+    // Never collect more than the total return owed
     const sweepAmount = Math.min(rawSweep, remaining);
 
     if (sweepAmount <= 0) {
@@ -126,27 +151,26 @@ export class SweepService {
       return;
     }
 
+    // Debit the business's ledger — this portion of the merchant wallet is
+    // no longer theirs; it belongs to the investors.
     const sweepRef = `sweep-${uuidv4()}`;
-    try {
-      await this.squadService.transferBetweenVirtualAccounts(
-        user.squadVirtualAccountNumber!,
-        this.escrowAccount,
-        sweepAmount,
-        sweepRef,
-      );
-    } catch (err) {
-      this.logger.error(`Sweep transfer failed: ${err}`);
-      return;
-    }
+    await this.ledgerService.debit({
+      userId: businessUserId,
+      amount: sweepAmount,
+      purpose: 'sweep_contribution',
+      referenceId: activeListing.id,
+      referenceType: 'listing',
+      squadTransactionReference: sweepRef,
+    });
 
     const [sweepEvent] = await db
       .insert(sweepEvents)
       .values({
         listingId: activeListing.id,
-        incomingPaymentAmount: amount,
+        incomingPaymentAmount: incomingAmount,
         sweepPercent: String(sweepPercent),
         sweepAmount,
-        netAmountRetained: amount - sweepAmount,
+        netAmountRetained: incomingAmount - sweepAmount,
         squadWebhookReference: transactionRef,
         processedAt: new Date(),
       })
@@ -164,14 +188,13 @@ export class SweepService {
       sweepAmount,
     );
 
-    const isComplete = newTotalSwept >= totalReturnAmount;
-    if (isComplete) {
+    if (newTotalSwept >= totalReturnAmount) {
       await this.closeDeal(activeListing.id, bp.id, bp.userId);
     }
 
     await this.checkTrancheReleases(activeListing.id, bp);
 
-    // Rating recalculation is non-critical â€” run it async so we don't delay the webhook response
+    // Rating recalculation is non-critical
     this.triggerRatingRecalculation(bp.id).catch((e) =>
       this.logger.error(`Rating recalc failed: ${e}`),
     );
@@ -195,30 +218,19 @@ export class SweepService {
     for (const investment of activeInvestments) {
       const sharePercent = Number(investment.sharePercent ?? 0);
       const distributionAmount = Math.round((sweepAmount * sharePercent) / 100);
-
       if (distributionAmount <= 0) continue;
 
-      const [investorUser] = await db
-        .select({ squadVirtualAccountNumber: users.squadVirtualAccountNumber })
-        .from(users)
-        .where(eq(users.id, investment.investorId));
-
-      if (!investorUser?.squadVirtualAccountNumber) continue;
-
       const distRef = `dist-${uuidv4()}`;
-      try {
-        await this.squadService.transferBetweenVirtualAccounts(
-          this.escrowAccount,
-          investorUser.squadVirtualAccountNumber,
-          distributionAmount,
-          distRef,
-        );
-      } catch (err) {
-        this.logger.error(
-          `Distribution to investor ${investment.investorId} failed: ${err}`,
-        );
-        continue;
-      }
+      // Credit the investor's internal balance. They can later withdraw via
+      // the payouts API which calls Squad's /payout/transfer.
+      await this.ledgerService.credit({
+        userId: investment.investorId,
+        amount: distributionAmount,
+        purpose: 'sweep_distribution',
+        referenceId: investment.id,
+        referenceType: 'investment',
+        squadTransactionReference: distRef,
+      });
 
       await db.insert(sweepDistributions).values({
         sweepEventId,
@@ -244,7 +256,7 @@ export class SweepService {
       await db.insert(notifications).values({
         userId: investment.investorId,
         title: 'Return received',
-        body: `â‚¦${distributionAmount / 100} was distributed to your wallet from a sweep.`,
+        body: `₦${(distributionAmount / 100).toLocaleString('en-NG')} was distributed to your wallet from a sweep.`,
       });
     }
   }
@@ -301,13 +313,6 @@ export class SweepService {
 
     const total = eventCount[0]?.count ?? 0;
 
-    const [busUser] = await db
-      .select({ squadVirtualAccountNumber: users.squadVirtualAccountNumber })
-      .from(users)
-      .where(eq(users.id, bp.userId));
-
-    if (!busUser?.squadVirtualAccountNumber) return;
-
     // Tranche 2 releases after 2nd sweep, tranche 3 after 4th sweep
     const trancheConditions: Array<{ number: number; minEvents: number }> = [
       { number: 2, minEvents: 2 },
@@ -315,61 +320,92 @@ export class SweepService {
     ];
 
     for (const tc of trancheConditions) {
-      if (total >= tc.minEvents) {
-        const [tranche] = await db
-          .select()
-          .from(tranches)
-          .where(
-            and(
-              eq(tranches.listingId, listingId),
-              eq(tranches.trancheNumber, tc.number),
-              eq(tranches.status, 'locked'),
-            ),
-          );
+      if (total < tc.minEvents) continue;
 
-        if (tranche) {
-          const ref = `tranche${tc.number}-${uuidv4()}`;
-          try {
-            await this.squadService.transferBetweenVirtualAccounts(
-              this.escrowAccount,
-              busUser.squadVirtualAccountNumber,
-              tranche.amount,
-              ref,
-            );
-          } catch (err) {
-            this.logger.warn(
-              `Tranche ${tc.number} transfer failed for listing ${listingId}: ${String(err)}`,
-            );
-          }
+      const [tranche] = await db
+        .select()
+        .from(tranches)
+        .where(
+          and(
+            eq(tranches.listingId, listingId),
+            eq(tranches.trancheNumber, tc.number),
+            eq(tranches.status, 'locked'),
+          ),
+        );
 
-          await db
-            .update(tranches)
-            .set({
-              status: 'released',
-              releasedAt: new Date(),
-              squadTransferReference: ref,
-            })
-            .where(eq(tranches.id, tranche.id));
+      if (!tranche) continue;
 
-          await db.insert(notifications).values({
-            userId: bp.userId,
-            title: `Tranche ${tc.number} released`,
-            body: `â‚¦${tranche.amount / 100} has been released to your account.`,
-          });
-        }
-      }
+      await this.releaseTrancheToBusiness(tranche, bp.userId);
     }
   }
 
-  async repayFull(listingId: string, userId: string) {
-    const [user] = await db.select().from(users).where(eq(users.id, userId));
+  // Capital tranches leave the merchant wallet via a real Squad payout. The
+  // business's ledger is not touched here — escrowed investor capital was
+  // never credited to them.
+  private async releaseTrancheToBusiness(
+    tranche: typeof tranches.$inferSelect,
+    businessUserId: string,
+  ) {
+    const [busUser] = await db
+      .select()
+      .from(users)
+      .where(eq(users.id, businessUserId));
 
-    if (!user?.squadVirtualAccountNumber) {
-      throw new BadRequestException(
-        'Virtual account not found â€” BVN not yet verified',
+    if (!busUser?.beneficiaryAccount) {
+      this.logger.error(
+        `Cannot release tranche ${tranche.id}: business has no beneficiary account`,
       );
+      return;
     }
 
+    const ref = `tranche${tranche.trancheNumber}-${tranche.id}`;
+    // Bank code for the GTBank settlement default — businesses register their
+    // GTBank beneficiary at signup. For non-GTBank destinations, the business
+    // should withdraw using the explicit payouts endpoint instead.
+    const bankCode = '058';
+
+    let transferStatus = 'failed';
+    try {
+      const result = await this.squadService.initiateTransfer(
+        tranche.amount,
+        bankCode,
+        busUser.beneficiaryAccount,
+        busUser.fullName,
+        ref,
+        `Tranche ${tranche.trancheNumber} release`,
+      );
+      transferStatus = result.status;
+    } catch (err) {
+      this.logger.error(
+        `Tranche ${tranche.trancheNumber} payout failed: ${String(err)}`,
+      );
+      return;
+    }
+
+    if (transferStatus === 'failed' || transferStatus === 'reversed') {
+      this.logger.error(
+        `Tranche ${tranche.trancheNumber} transfer was not successful (${transferStatus})`,
+      );
+      return;
+    }
+
+    await db
+      .update(tranches)
+      .set({
+        status: 'released',
+        releasedAt: new Date(),
+        squadTransferReference: ref,
+      })
+      .where(eq(tranches.id, tranche.id));
+
+    await db.insert(notifications).values({
+      userId: businessUserId,
+      title: `Tranche ${tranche.trancheNumber} released`,
+      body: `₦${(tranche.amount / 100).toLocaleString('en-NG')} has been transferred to your bank account.`,
+    });
+  }
+
+  async repayFull(listingId: string, userId: string) {
     const [bp] = await db
       .select()
       .from(businessProfiles)
@@ -395,8 +431,19 @@ export class SweepService {
       throw new BadRequestException('This listing has no remaining balance');
     }
 
-    // Release any tranches that haven't been disbursed yet â€” the business is paying the full
-    // return amount so they're entitled to all capital that was committed for them
+    // The business must have enough already deposited (and unswept) to cover
+    // the remaining balance. We don't initiate a Squad collection here —
+    // funds must already be in the merchant wallet, allocated to the business.
+    const businessBalance =
+      await this.ledgerService.getAvailableBalance(userId);
+    if (businessBalance < remaining) {
+      throw new BadRequestException(
+        `Insufficient wallet balance to repay in full. Need ₦${(remaining / 100).toLocaleString('en-NG')}, available ₦${(businessBalance / 100).toLocaleString('en-NG')}. Top up your wallet first.`,
+      );
+    }
+
+    // Release any still-locked tranches — the business is fully repaying so
+    // they're owed all committed capital.
     const lockedTranches = await db
       .select()
       .from(tranches)
@@ -405,46 +452,20 @@ export class SweepService {
       );
 
     for (const tranche of lockedTranches) {
-      const ref = `tranche${tranche.trancheNumber}-early-${uuidv4()}`;
-      try {
-        await this.squadService.transferBetweenVirtualAccounts(
-          this.escrowAccount,
-          user.squadVirtualAccountNumber,
-          tranche.amount,
-          ref,
-        );
-        await db
-          .update(tranches)
-          .set({
-            status: 'released',
-            releasedAt: new Date(),
-            squadTransferReference: ref,
-          })
-          .where(eq(tranches.id, tranche.id));
-
-        await db.insert(notifications).values({
-          userId: bp.userId,
-          title: `Tranche ${tranche.trancheNumber} released`,
-          body: `â‚¦${(tranche.amount / 100).toLocaleString()} disbursed ahead of full repayment.`,
-        });
-      } catch (err) {
-        this.logger.error(`Early tranche release failed: ${err}`);
-      }
+      await this.releaseTrancheToBusiness(tranche, bp.userId);
     }
 
-    // Collect the full remaining balance from the business
+    // Debit the business's ledger for the full remaining balance, then
+    // distribute it to investors as a single synthetic sweep event.
     const repayRef = `manual-repay-${uuidv4()}`;
-    try {
-      await this.squadService.transferBetweenVirtualAccounts(
-        user.squadVirtualAccountNumber,
-        this.escrowAccount,
-        remaining,
-        repayRef,
-      );
-    } catch (err) {
-      this.logger.error(`Full repayment transfer failed: ${err}`);
-      throw new BadGatewayException('Repayment transfer failed');
-    }
+    await this.ledgerService.debit({
+      userId,
+      amount: remaining,
+      purpose: 'sweep_contribution',
+      referenceId: listingId,
+      referenceType: 'listing',
+      squadTransactionReference: repayRef,
+    });
 
     const [sweepEvent] = await db
       .insert(sweepEvents)
@@ -474,7 +495,7 @@ export class SweepService {
 
     return {
       repaid: remaining,
-      message: `â‚¦${(remaining / 100).toLocaleString()} repaid. Your listing is now completed.`,
+      message: `₦${(remaining / 100).toLocaleString('en-NG')} repaid. Your listing is now completed.`,
     };
   }
 

@@ -10,6 +10,7 @@ import { db } from '../../db';
 import { payouts, notifications } from '../../db/schema';
 import { eq, desc, asc, and, count } from 'drizzle-orm';
 import { SquadService } from '../squad/squad.service';
+import { LedgerService } from '../ledger/ledger.service';
 import { SquadConfig } from '../../config/config';
 import type { SquadConfigType } from '../../config/config.types';
 import type { JwtPayload } from '../../common/decorators/current-user.decorator';
@@ -19,15 +20,8 @@ import {
   RequeryPayoutDto,
 } from './dto/payout-requests.dto';
 
-const FINAL_STATUSES = new Set([
-  'success',
-  'successful',
-  'completed',
-  'failed',
-  'reversed',
-]);
-
-const SUCCESS_STATUSES = new Set(['success', 'successful', 'completed']);
+const FINAL_STATUSES = new Set(['success', 'failed', 'reversed']);
+const SUCCESS_STATUSES = new Set(['success']);
 
 function formatNaira(amountKobo: number): string {
   return (amountKobo / 100).toLocaleString('en-NG');
@@ -37,6 +31,7 @@ function formatNaira(amountKobo: number): string {
 export class PayoutsService {
   constructor(
     private squadService: SquadService,
+    private ledgerService: LedgerService,
     @Inject(SquadConfig.KEY) private squadCfg: SquadConfigType,
   ) {}
 
@@ -58,6 +53,15 @@ export class PayoutsService {
       throw new BadRequestException('amount must be a positive number in kobo');
     }
 
+    // Balance now comes from the internal ledger — the merchant wallet is
+    // shared across all users, so per-user balance is allocation-based.
+    const balance = await this.ledgerService.getAvailableBalance(user.userId);
+    if (balance < amount) {
+      throw new BadRequestException(
+        `Insufficient balance. Available: ₦${formatNaira(balance)}`,
+      );
+    }
+
     const merchantId = this.squadCfg.merchantId;
     if (!merchantId) {
       throw new InternalServerErrorException(
@@ -66,43 +70,104 @@ export class PayoutsService {
     }
 
     const reference = `${merchantId}_${uuidv4()}`;
-    const response = await this.squadService.initiateTransfer(
-      amount,
-      dto.bankCode,
-      dto.accountNumber,
-      dto.accountName,
-      reference,
-      dto.remark,
-    );
 
-    const status = String(response.status ?? 'pending');
-    const [created] = await db
-      .insert(payouts)
-      .values({
-        userId: user.userId,
-        userType: user.userType,
+    // Atomically debit the ledger and record the payout row. If anything
+    // inside the transaction throws, Postgres rolls back both writes so the
+    // user's balance is never reduced without a matching payout record.
+    // The Squad API call happens outside the transaction — network calls
+    // cannot be rolled back — but we wrap it in a try/catch and reverse the
+    // ledger debit if Squad throws or returns a terminal failure.
+    let response: Awaited<ReturnType<SquadService['initiateTransfer']>>;
+
+    await db.transaction(async (tx) => {
+      await this.ledgerService.debit(
+        {
+          userId: user.userId,
+          amount,
+          purpose: 'payout',
+          referenceType: 'payout',
+          squadTransactionReference: reference,
+        },
+        tx,
+      );
+
+      // Placeholder row — status updated below once we hear from Squad.
+      await tx
+        .insert(payouts)
+        .values({
+          userId: user.userId,
+          userType: user.userType,
+          amount,
+          bankCode: dto.bankCode,
+          accountNumber: dto.accountNumber,
+          accountName: dto.accountName,
+          transactionReference: reference,
+          remark: dto.remark,
+          status: 'pending',
+          squadStatus: 'pending',
+          updatedAt: new Date(),
+        });
+    });
+
+    try {
+      response = await this.squadService.initiateTransfer(
         amount,
-        bankCode: dto.bankCode,
-        accountNumber: dto.accountNumber,
-        accountName: dto.accountName,
+        dto.bankCode,
+        dto.accountNumber,
+        dto.accountName,
+        reference,
+        dto.remark,
+      );
+    } catch (err) {
+      // Squad unreachable or threw — reverse the ledger debit.
+      await this.ledgerService.credit({
+        userId: user.userId,
+        amount,
+        purpose: 'payout_reversed',
+        referenceType: 'payout',
+        squadTransactionReference: `${reference}_reversal`,
+      });
+      await db
+        .update(payouts)
+        .set({ status: 'failed', squadStatus: 'Squad API error', updatedAt: new Date() })
+        .where(eq(payouts.transactionReference, reference));
+      throw err;
+    }
+
+    // Persist the real Squad reference and status returned from the API.
+    const [updated] = await db
+      .update(payouts)
+      .set({
         transactionReference: response.transactionReference,
-        remark: dto.remark,
-        status,
-        squadStatus: status,
+        status: response.status,
+        squadStatus: response.responseDescription,
         updatedAt: new Date(),
       })
+      .where(eq(payouts.transactionReference, reference))
       .returning();
+
+    // If Squad already returned a terminal failure on the initial call,
+    // refund the ledger now so the user isn't locked out of their funds.
+    if (response.status === 'failed' || response.status === 'reversed') {
+      await this.ledgerService.credit({
+        userId: user.userId,
+        amount,
+        purpose: 'payout_reversed',
+        referenceType: 'payout',
+        squadTransactionReference: `${reference}_reversal`,
+      });
+    }
 
     await db.insert(notifications).values({
       userId: user.userId,
       title: 'Payout initiated',
-      body: `Payout of NGN ${formatNaira(amount)} to ${dto.accountName} has been initiated.`,
+      body: `Payout of ₦${formatNaira(amount)} to ${dto.accountName} has been initiated.`,
     });
 
     return {
-      id: created.id,
-      transactionReference: created.transactionReference,
-      status: created.status,
+      id: updated.id,
+      transactionReference: updated.transactionReference,
+      status: updated.status,
     };
   }
 
@@ -122,13 +187,12 @@ export class PayoutsService {
     const result = await this.squadService.requeryTransfer(
       dto.transactionReference,
     );
-    const status = String(result.status ?? 'unknown');
-    const normalized = status.toLowerCase();
+    const normalized = result.status.toLowerCase();
     const now = new Date();
 
     const updates: Partial<typeof payouts.$inferInsert> = {
-      status,
-      squadStatus: status,
+      status: normalized,
+      squadStatus: result.responseDescription,
       updatedAt: now,
     };
 
@@ -138,21 +202,40 @@ export class PayoutsService {
 
     await db.update(payouts).set(updates).where(eq(payouts.id, existing.id));
 
+    // Reverse the ledger debit if the payout terminally failed. Use a
+    // distinct squad_transaction_reference suffix so a redelivered failure
+    // doesn't double-refund.
+    const reversalRef = `${existing.transactionReference}_reversal`;
+    if (
+      FINAL_STATUSES.has(normalized) &&
+      !SUCCESS_STATUSES.has(normalized) &&
+      !existing.completedAt &&
+      !(await this.ledgerService.hasEntryForSquadReference(reversalRef))
+    ) {
+      await this.ledgerService.credit({
+        userId: existing.userId,
+        amount: existing.amount,
+        purpose: 'payout_reversed',
+        referenceType: 'payout',
+        squadTransactionReference: reversalRef,
+      });
+    }
+
     if (FINAL_STATUSES.has(normalized) && !existing.completedAt) {
       const isSuccess = SUCCESS_STATUSES.has(normalized);
       await db.insert(notifications).values({
         userId: user.userId,
         title: isSuccess ? 'Payout completed' : 'Payout failed',
         body: isSuccess
-          ? `Payout of NGN ${formatNaira(existing.amount)} has completed.`
-          : `Payout of NGN ${formatNaira(existing.amount)} failed or was reversed.`,
+          ? `Payout of ₦${formatNaira(existing.amount)} has completed.`
+          : `Payout of ₦${formatNaira(existing.amount)} failed and your balance was restored.`,
       });
     }
 
     return {
       transactionReference: existing.transactionReference,
-      status,
-      squadStatus: status,
+      status: normalized,
+      squadStatus: result.responseDescription,
       updatedAt: now,
     };
   }

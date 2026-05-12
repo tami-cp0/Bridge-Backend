@@ -10,7 +10,25 @@ function unwrapSquadData<T>(payload: SquadApiResponse<T>): T {
   return (payload.data ?? payload) as T;
 }
 
-// Thin wrapper around the Squad payment API — all money movement goes through here
+// Squad customer-transaction entry. Credits land here whenever someone pays into
+// the user's virtual account.
+export interface SquadCustomerTransaction {
+  transactionReference: string;
+  virtualAccountNumber: string;
+  principalAmount: number; // kobo
+  settledAmount: number; // kobo
+  feeCharged: number; // kobo
+  transactionDate: string;
+  // 'C' for credit (incoming), 'D' for debit (rare on VAs since we don't auto-sweep)
+  transactionIndicator: string;
+  remarks?: string;
+  currency?: string;
+  frozen?: boolean;
+}
+
+// Thin wrapper around the Squad payment API. VAs are entry points only —
+// every deposit lands in the merchant wallet, so this module never moves money
+// "between" accounts. Internal allocation lives in LedgerService.
 @Injectable()
 export class SquadService {
   private readonly logger = new Logger(SquadService.name);
@@ -26,13 +44,15 @@ export class SquadService {
     });
   }
 
+  // Investor VA. We deliberately omit beneficiary_account: that field triggers
+  // Squad's instant settlement to a GTBank account, which would empty our escrow
+  // on every deposit. We want funds to land and stay in the merchant wallet.
   async createVirtualAccount(
     userId: string,
     fullName: string,
     bvn: string,
     phone: string,
     email: string,
-    beneficiaryAccount: string,
   ): Promise<{ virtualAccountNumber: string; reference: string }> {
     const nameParts = fullName.trim().split(' ');
     const firstName = nameParts[0];
@@ -55,7 +75,6 @@ export class SquadService {
       gender: '1',
       address: 'Nigeria',
       customer_identifier: userId,
-      beneficiary_account: beneficiaryAccount,
     });
 
     const data = unwrapSquadData(response.data);
@@ -70,22 +89,18 @@ export class SquadService {
     businessName: string,
     bvn: string,
     phone: string,
-    beneficiaryAccount: string,
   ): Promise<{ virtualAccountNumber: string; reference: string }> {
-    const payload: Record<string, string> = {
-      business_name: businessName,
-      mobile_num: phone,
-      bvn,
-      customer_identifier: businessId,
-      beneficiary_account: beneficiaryAccount,
-    };
-
     const response = await this.client.post<
       SquadApiResponse<{
         virtual_account_number?: string;
         customer_identifier?: string;
       }>
-    >('/virtual-account/business', payload);
+    >('/virtual-account/business', {
+      business_name: businessName,
+      mobile_num: phone,
+      bvn,
+      customer_identifier: businessId,
+    });
 
     const data = unwrapSquadData(response.data);
     return {
@@ -94,15 +109,51 @@ export class SquadService {
     };
   }
 
-  async getAccountBalance(virtualAccountNumber: string): Promise<number> {
+  // Returns every credit/debit Squad has recorded against this customer's VA.
+  // Used to reconcile deposits against the internal ledger.
+  async getCustomerTransactions(
+    customerIdentifier: string,
+  ): Promise<SquadCustomerTransaction[]> {
     const response = await this.client.get<
-      SquadApiResponse<{
-        balance?: number | string;
-        available_balance?: number | string;
-      }>
-    >(`/virtual-account/customer/${virtualAccountNumber}`);
+      SquadApiResponse<
+        Array<{
+          transaction_reference?: string;
+          virtual_account_number?: string;
+          principal_amount?: string | number;
+          settled_amount?: string | number;
+          fee_charged?: string | number;
+          transaction_date?: string;
+          transaction_indicator?: string;
+          remarks?: string;
+          currency?: string;
+          frozen_transaction?: unknown;
+        }>
+      >
+    >(`/virtual-account/customer/transactions/${customerIdentifier}`);
+
+    const rows = unwrapSquadData(response.data) ?? [];
+    return rows.map((r) => ({
+      transactionReference: r.transaction_reference ?? '',
+      virtualAccountNumber: r.virtual_account_number ?? '',
+      // Squad returns Naira strings like "30000.00"; convert to kobo
+      principalAmount: Math.round(Number(r.principal_amount ?? 0) * 100),
+      settledAmount: Math.round(Number(r.settled_amount ?? 0) * 100),
+      feeCharged: Math.round(Number(r.fee_charged ?? 0) * 100),
+      transactionDate: r.transaction_date ?? '',
+      transactionIndicator: r.transaction_indicator ?? 'C',
+      remarks: r.remarks,
+      currency: r.currency,
+      frozen: r.frozen_transaction != null,
+    }));
+  }
+
+  // Total of the merchant wallet (the actual escrow). Returned in kobo.
+  async getMerchantBalance(): Promise<number> {
+    const response = await this.client.get<
+      SquadApiResponse<{ balance?: number | string }>
+    >('/merchant/balance', { params: { currency_id: 'NGN' } });
     const data = unwrapSquadData(response.data);
-    return Number(data.balance ?? data.available_balance ?? 0);
+    return Number(data.balance ?? 0);
   }
 
   async initiateTransfer(
@@ -112,9 +163,16 @@ export class SquadService {
     accountName: string,
     reference: string,
     narration: string,
-  ): Promise<{ transactionReference: string; status: string }> {
+  ): Promise<{
+    transactionReference: string;
+    responseDescription: string;
+    status: string;
+  }> {
     const response = await this.client.post<
-      SquadApiResponse<{ transaction_reference?: string; status?: string }>
+      SquadApiResponse<{
+        transaction_reference?: string;
+        response_description?: string;
+      }>
     >('/payout/transfer', {
       transaction_reference: reference,
       amount: String(amount),
@@ -125,9 +183,11 @@ export class SquadService {
       remark: narration,
     });
     const data = unwrapSquadData(response.data);
+    const responseDescription = String(data.response_description ?? '');
     return {
       transactionReference: data.transaction_reference ?? reference,
-      status: data.status ?? 'unknown',
+      responseDescription,
+      status: this.normalizeTransferStatus(responseDescription),
     };
   }
 
@@ -146,81 +206,45 @@ export class SquadService {
     return { accountName: String(data.account_name ?? '') };
   }
 
-  async requeryTransfer(
-    reference: string,
-  ): Promise<
-    Record<string, unknown> & { transactionReference: string; status: string }
-  > {
+  async requeryTransfer(reference: string): Promise<{
+    transactionReference: string;
+    responseDescription: string;
+    status: string;
+    raw: Record<string, unknown>;
+  }> {
     const response = await this.client.post<
       SquadApiResponse<Record<string, unknown>>
     >('/payout/requery', {
       transaction_reference: reference,
     });
 
-    const data = unwrapSquadData(response.data);
-    const statusValue =
-      data.status ?? data.transaction_status ?? data.transactionStatus;
-    const status =
-      typeof statusValue === 'string'
-        ? statusValue
-        : typeof statusValue === 'number' || typeof statusValue === 'boolean'
-          ? String(statusValue)
-          : 'unknown';
+    const data = unwrapSquadData(response.data) ?? {};
+    const rawDesc = data.response_description;
+    const responseDescription = typeof rawDesc === 'string' ? rawDesc : '';
     const refValue =
-      data.transaction_reference ?? data.transactionReference ?? reference;
-    const transactionReference =
-      typeof refValue === 'string' ? refValue : reference;
+      (data.transaction_reference as string | undefined) ?? reference;
 
-    return { transactionReference, status, ...data };
-  }
-
-  async listTransfers(
-    page: number,
-    perPage: number,
-    dir: 'ASC' | 'DESC',
-  ): Promise<Record<string, unknown>> {
-    const response = await this.client.get<
-      SquadApiResponse<Record<string, unknown>>
-    >('/payout/list', {
-      params: { page, perPage, dir },
-    });
-
-    return unwrapSquadData(response.data);
-  }
-
-  async transferBetweenVirtualAccounts(
-    fromAccount: string,
-    toAccount: string,
-    amount: number,
-    reference: string,
-  ): Promise<{ transactionReference: string; status: string }> {
-    const response = await this.client.post<
-      SquadApiResponse<{ transaction_reference?: string; status?: string }>
-    >('/virtual-account/transfer', {
-      from: fromAccount,
-      to: toAccount,
-      amount,
-      transaction_reference: reference,
-    });
-    const data = unwrapSquadData(response.data);
     return {
-      transactionReference: data.transaction_reference ?? reference,
-      status: data.status ?? 'success',
+      transactionReference: refValue,
+      responseDescription,
+      status: this.normalizeTransferStatus(responseDescription),
+      raw: data,
     };
   }
 
-  // Sandbox only — simulates an incoming payment to trigger the webhook flow without a real bank transfer
+  // Sandbox only — simulates an incoming payment to a VA. In production this
+  // happens when someone actually pays the VA from their bank app.
   async simulatePayment(
     virtualAccountNumber: string,
     amount: number,
   ): Promise<void> {
     await this.client.post('/virtual-account/simulate/payment', {
       virtual_account_number: virtualAccountNumber,
-      amount,
+      amount: String(amount),
     });
   }
 
-  // Validates Squad's HMAC-SHA512 signature; timingSafeEqual prevents timing attacks
+  // Squad's HMAC-SHA512 signature; timingSafeEqual prevents timing attacks
   verifyWebhookSignature(rawBody: string, signatureHeader: string): boolean {
     const secret = this.squadCfg.secretKey!;
     const computed = crypto
@@ -231,5 +255,26 @@ export class SquadService {
       Buffer.from(computed, 'hex'),
       Buffer.from(signatureHeader, 'hex'),
     );
+  }
+
+  // Squad reports payout state in response_description. Normalize to a small
+  // set of statuses our domain understands.
+  private normalizeTransferStatus(responseDescription: string): string {
+    const v = responseDescription.toLowerCase();
+    if (
+      v.includes('approved') ||
+      v.includes('success') ||
+      v.includes('completed')
+    ) {
+      return 'success';
+    }
+    if (v.includes('reverse')) return 'reversed';
+    if (v.includes('fail') || v.includes('declin') || v.includes('error')) {
+      return 'failed';
+    }
+    if (v.includes('pending') || v.includes('processing') || v === '') {
+      return 'pending';
+    }
+    return v;
   }
 }

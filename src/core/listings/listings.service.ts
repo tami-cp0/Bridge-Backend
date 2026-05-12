@@ -445,11 +445,22 @@ export class ListingsService {
 
     if (!result) throw new NotFoundException('Listing not found');
 
-    const listingTranches = await db
-      .select()
-      .from(tranches)
-      .where(eq(tranches.listingId, id));
+    const [listingTranches, busUser] = await Promise.all([
+      db.select().from(tranches).where(eq(tranches.listingId, id)),
+      result.business_profiles?.userId
+        ? db
+            .select({ squadVirtualAccountNumber: users.squadVirtualAccountNumber })
+            .from(users)
+            .where(eq(users.id, result.business_profiles.userId))
+            .then(([u]) => u ?? null)
+        : Promise.resolve(null),
+    ]);
 
-    return { ...result, tranches: listingTranches };
+    return {
+      ...result,
+      tranches: listingTranches,
+      businessSquadVirtualAccountNumber:
+        busUser?.squadVirtualAccountNumber ?? null,
+    };
   }
 }
