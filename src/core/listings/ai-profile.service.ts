@@ -4,7 +4,7 @@ import { OpenAiConfig } from '../../config/config';
 import type { OpenAiConfigType } from '../../config/config.types';
 
 // Model is a deliberate code decision (quality + cost trade-off), not a runtime config
-const MODEL = 'gpt-4o';
+const MODEL = 'gpt-5';
 
 interface ProfileInput {
   businessName: string;
@@ -46,7 +46,7 @@ export class AiProfileService {
         {
           role: 'system',
           content:
-            'You are generating an investment profile for a micro-investment platform called Bridge. Write a clear honest narrative in plain English that a non-financial investor can read and act on in under two minutes. Cover what the business does, how long it has operated, what the income history shows, what the capital will be used for, and what the risk signals are. If there are inconsistencies such as self-reported revenue significantly higher than verified inflow, flag them clearly in a separate paragraph. Do not hide negative signals. Do not use financial jargon. Output only the narrative text with no headings or formatting.',
+            'You are generating an investment profile for a micro-investment platform called Bridge. Write a clear honest narrative in plain English that a non-financial investor can read and act on in under two minutes. Cover what the business does, how long it has operated, what the revenue history shows, what the capital will be used for, and what the risk signals are. If there are inconsistencies such as self-reported revenue significantly higher than verified inflow, flag them clearly in a separate paragraph. Do not hide negative signals. Do not use financial jargon. Output only the narrative text with no headings or formatting. but it should be well spaced and flow nicely',
         },
         {
           role: 'user',
