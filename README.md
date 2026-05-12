@@ -43,7 +43,7 @@ Open `.env` and fill in every value:
 | `OPENAI_API_KEY` | platform.openai.com → API keys |
 | `SQUAD_SECRET_KEY` | sandbox.squadco.com → Settings → API & Webhook tab |
 | `SQUAD_BASE_URL` | Leave as `https://sandbox-api-d.squadco.com` |
-| `SQUAD_ESCROW_ACCOUNT` | See step 4 |
+| `SQUAD_MERCHANT_ID` | sandbox.squadco.com → Profile → your merchant ID (used as a prefix on payout `transaction_reference`) |
 | `SWEEP_TOLERANCE_PERCENT` | Leave as `2` |
 | `MAX_DEAL_DURATION_MONTHS` | Leave as `24` |
 
@@ -65,18 +65,28 @@ npm run db:studio
 
 ---
 
-## 4. Create the Squad escrow account
+## 4. Database driver
 
-The platform needs a dedicated virtual account to hold investor funds before distributing them to investors after sweeps.
+The project uses `@neondatabase/serverless` in **WebSocket mode** (`Pool` + `drizzle-orm/neon-serverless`). This enables `db.transaction(tx => ...)` with real Postgres `BEGIN/COMMIT/ROLLBACK` semantics, which is required for the payout flow (ledger debit + payout row written atomically before the Squad API call).
 
-1. Log in to [sandbox.squadco.com](https://sandbox.squadco.com)
-2. Go to **Virtual Accounts** → create a new one (name it anything, e.g. "Bridge Escrow")
-3. Copy the virtual account number Squad generates
-4. Set `SQUAD_ESCROW_ACCOUNT=<that number>` in your `.env`
+The `ws` package provides the WebSocket constructor used by the Neon driver in Node.js environments.
 
 ---
 
-## 5. Start the server
+## 5. How the escrow works
+
+There is no separate "escrow account". Squad's merchant wallet **is** the escrow:
+every payment into any virtual account we create lands in that one wallet. Per-user
+ownership is tracked in the `internal_ledger_entries` table — credits when a user
+deposits or receives a sweep distribution, debits when they invest, withdraw, or
+contribute to a sweep. A user's spendable balance is `sum(credits) - sum(debits)`.
+
+Capital tranches and payouts leave the escrow by calling Squad's `/payout/transfer`
+to a real bank account (the `beneficiaryAccount` collected at signup).
+
+---
+
+## 6. Start the server
 
 ```bash
 npm run start:dev

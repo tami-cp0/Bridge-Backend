@@ -1,4 +1,4 @@
-﻿import { Injectable, Inject, NotFoundException } from '@nestjs/common';
+import { Injectable, Inject, NotFoundException } from '@nestjs/common';
 import { db } from '../../db';
 import {
   investorProfiles,
@@ -9,6 +9,7 @@ import {
 import { eq, desc } from 'drizzle-orm';
 import { UpdatePreferencesDto } from './dto/update-preferences.dto';
 import { SquadService } from '../squad/squad.service';
+import { LedgerService } from '../ledger/ledger.service';
 import { SquadConfig } from '../../config/config';
 import type { SquadConfigType } from '../../config/config.types';
 
@@ -16,6 +17,7 @@ import type { SquadConfigType } from '../../config/config.types';
 export class InvestorService {
   constructor(
     private squadService: SquadService,
+    private ledgerService: LedgerService,
     @Inject(SquadConfig.KEY) private squadCfg: SquadConfigType,
   ) {}
 
@@ -75,21 +77,12 @@ export class InvestorService {
   }
 
   async getWallet(userId: string) {
-    const [user] = await db
-      .select({ squadVirtualAccountNumber: users.squadVirtualAccountNumber })
-      .from(users)
-      .where(eq(users.id, userId));
+    // Withdrawable balance is the user's allocation of the merchant wallet.
+    const availableBalance =
+      await this.ledgerService.getAvailableBalance(userId);
 
-    if (!user?.squadVirtualAccountNumber) {
-      throw new NotFoundException('Virtual account not found');
-    }
-
-    // Live balance from Squad â€” not cached locally
-    const availableBalance = await this.squadService.getAccountBalance(
-      user.squadVirtualAccountNumber,
-    );
-
-    // Default pool balance is the sum of 4% contributions across all investments
+    // Default pool is the sum of 4% contributions across all investments;
+    // it is locked against the listing, not the user's spendable balance.
     const allInvestments = await db
       .select({ defaultPoolContribution: investments.defaultPoolContribution })
       .from(investments)
@@ -104,7 +97,6 @@ export class InvestorService {
   }
 
   async updatePreferences(userId: string, dto: UpdatePreferencesDto) {
-    // Only update fields that were explicitly provided â€” ignore undefined ones
     const updates: Partial<typeof investorProfiles.$inferInsert> = {};
     if (dto.sectorInterests !== undefined)
       updates.sectorInterests = dto.sectorInterests;
@@ -139,6 +131,32 @@ export class InvestorService {
 
     if (!result) throw new NotFoundException('Investor profile not found');
     return result;
+  }
+
+  // Sandbox-only: ask Squad to simulate an incoming payment to the user's VA.
+  // Squad responds, then fires the webhook which is what credits the ledger.
+  async simulateDeposit(userId: string, amount: number) {
+    const [user] = await db
+      .select({ squadVirtualAccountNumber: users.squadVirtualAccountNumber })
+      .from(users)
+      .where(eq(users.id, userId));
+
+    if (!user?.squadVirtualAccountNumber) {
+      throw new NotFoundException('Virtual account not found');
+    }
+
+    await this.squadService.simulatePayment(
+      user.squadVirtualAccountNumber,
+      amount,
+    );
+
+    return {
+      simulated: true,
+      amount,
+      virtualAccountNumber: user.squadVirtualAccountNumber,
+      message:
+        'Deposit simulated. The Squad webhook will credit your wallet shortly.',
+    };
   }
 
   async getPaymentLink(userId: string) {

@@ -1,6 +1,7 @@
 ﻿import {
   Controller,
   Get,
+  Post,
   Patch,
   Param,
   Body,
@@ -17,6 +18,7 @@ import {
 } from '@nestjs/swagger';
 import { InvestorService } from './investor.service';
 import { UpdatePreferencesDto } from './dto/update-preferences.dto';
+import { SimulateDepositDto } from './dto/deposit.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { InvestorGuard } from '../../common/guards/investor.guard';
 import {
@@ -125,6 +127,35 @@ export class InvestorController {
   })
   getWallet(@Param('userId') userId: string) {
     return this.investorService.getWallet(userId);
+  }
+
+  @Post(':userId/deposit')
+  @UseGuards(InvestorGuard)
+  @ApiParam({ name: 'userId', description: 'Investor user UUID' })
+  @ApiOperation({
+    summary:
+      'Sandbox: simulate an incoming deposit to the investor Squad virtual account',
+  })
+  @ApiResponse({
+    status: 201,
+    schema: {
+      type: 'object',
+      properties: {
+        simulated: { type: 'boolean', example: true },
+        amount: { type: 'number', example: 500000, description: 'Amount in kobo' },
+        virtualAccountNumber: { type: 'string', example: '9912345678' },
+      },
+    },
+  })
+  @ApiResponse({ status: 400, description: 'Validation error' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Forbidden — caller is not an investor account' })
+  @ApiResponse({ status: 404, description: 'Virtual account not found' })
+  simulateDeposit(
+    @Param('userId') userId: string,
+    @Body() dto: SimulateDepositDto,
+  ) {
+    return this.investorService.simulateDeposit(userId, dto.amount);
   }
 
   @Patch(':userId/preferences')
