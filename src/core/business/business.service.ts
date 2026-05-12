@@ -66,9 +66,9 @@ export class BusinessService {
       })
       .where(eq(businessProfiles.userId, userId));
 
-    // Fire-and-forget — Mono processes income async and delivers the result
+    // Trigger income analysis — Mono processes income async and delivers the result
     // via the mono.events.account_income webhook which updates monoAverageMonthlyInflow
-    void this.monoService.triggerIncomeProcessing(accountId);
+    await this.monoService.triggerIncomeProcessing(accountId);
 
     return { connected: true, averageMonthlyInflow: null };
   }

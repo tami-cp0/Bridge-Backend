@@ -67,10 +67,17 @@ export class MonoService {
     try {
       await this.client.get(`/v2/accounts/${accountId}/income`);
     } catch (err: unknown) {
+      const status = axios.isAxiosError(err) ? err.response?.status : undefined;
+      if (status && status < 500) {
+        throw new BadRequestException('Unable to trigger Mono income analysis');
+      }
       const data = axios.isAxiosError(err) ? err.response?.data : undefined;
-      this.logger.warn(
+      this.logger.error(
         `Income processing trigger failed for account ${accountId}`,
         data,
+      );
+      throw new InternalServerErrorException(
+        'Income analysis service unavailable',
       );
     }
   }
