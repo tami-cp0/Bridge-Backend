@@ -22,7 +22,7 @@ export const internalLedgerEntries = pgTable(
   {
     id: uuid('id').primaryKey().defaultRandom(),
     userId: uuid('user_id')
-      .references(() => users.id)
+      .references(() => users.id, { onDelete: 'cascade' })
       .notNull(),
     entryType: ledgerEntryTypeEnum('entry_type').notNull(),
     amount: bigint('amount', { mode: 'number' }).notNull(),

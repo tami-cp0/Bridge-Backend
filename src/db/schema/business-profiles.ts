@@ -15,7 +15,7 @@ import { users } from './users';
 export const businessProfiles = pgTable('business_profiles', {
   id: uuid('id').primaryKey().defaultRandom(),
   userId: uuid('user_id')
-    .references(() => users.id)
+    .references(() => users.id, { onDelete: 'cascade' })
     .unique()
     .notNull(),
   businessName: varchar('business_name', { length: 255 }).notNull(),

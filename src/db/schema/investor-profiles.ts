@@ -12,7 +12,7 @@ import { users } from './users';
 export const investorProfiles = pgTable('investor_profiles', {
   id: uuid('id').primaryKey().defaultRandom(),
   userId: uuid('user_id')
-    .references(() => users.id)
+    .references(() => users.id, { onDelete: 'cascade' })
     .unique()
     .notNull(),
   sectorInterests: text('sector_interests').array(),

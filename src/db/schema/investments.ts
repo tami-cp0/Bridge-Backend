@@ -17,7 +17,7 @@ export const investments = pgTable('investments', {
     .references(() => listings.id)
     .notNull(),
   investorId: uuid('investor_id')
-    .references(() => users.id)
+    .references(() => users.id, { onDelete: 'cascade' })
     .notNull(),
   amountCommitted: bigint('amount_committed', { mode: 'number' }).notNull(),
   defaultPoolContribution: bigint('default_pool_contribution', {

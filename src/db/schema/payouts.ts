@@ -13,7 +13,7 @@ import { userTypeEnum } from './enums';
 export const payouts = pgTable('payouts', {
   id: uuid('id').primaryKey().defaultRandom(),
   userId: uuid('user_id')
-    .references(() => users.id)
+    .references(() => users.id, { onDelete: 'cascade' })
     .notNull(),
   userType: userTypeEnum('user_type').notNull(),
   amount: bigint('amount', { mode: 'number' }).notNull(),
