@@ -10,8 +10,8 @@ import OpenAI from 'openai';
 import { OpenAiConfig } from '../../config/config';
 import type { OpenAiConfigType } from '../../config/config.types';
 
-// Model is a deliberate code decision (quality + cost trade-off), not a runtime config
-const MODEL = 'gpt-5';
+// Model is a deliberate code decision for speed
+const MODEL = 'gpt-5-nano';
 
 interface ProfileInput {
   businessName: string;
