@@ -43,23 +43,23 @@ const STANDING_REDUCTIONS: Record<BridgeStanding, number> = {
 const TIER_CONFIG: Record<
   number,
   {
-    minRevenueKobo: number;
+    // minRevenueKobo: number;
     revenueMultiple: number;
     maxTimelineMonths: number;
   }
 > = {
   1: {
-    minRevenueKobo: 30_000_000,
+    // minRevenueKobo: 30_000_000,
     revenueMultiple: 1.5,
     maxTimelineMonths: 18,
   },
   2: {
-    minRevenueKobo: 200_000_000,
+    // minRevenueKobo: 200_000_000,
     revenueMultiple: 2.0,
     maxTimelineMonths: 24,
   },
   3: {
-    minRevenueKobo: 1_000_000_000,
+    // minRevenueKobo: 1_000_000_000,
     revenueMultiple: 2.0,
     maxTimelineMonths: 24,
   },
@@ -93,12 +93,12 @@ export class ListingsService {
     const avgMonthlyInflow =
       bp.monoAverageMonthlyInflow ?? bp.averageMonthlyRevenue;
 
-    if (avgMonthlyInflow < tierConfig.minRevenueKobo) {
-      const minRevNaira = (tierConfig.minRevenueKobo / 100).toLocaleString();
-      throw new BadRequestException(
-        `Tier ${tier} requires a minimum average monthly revenue of â‚¦${minRevNaira}`,
-      );
-    }
+    // if (avgMonthlyInflow < tierConfig.minRevenueKobo) {
+    //   const minRevNaira = (tierConfig.minRevenueKobo / 100).toLocaleString();
+    //   throw new BadRequestException(
+    //     `Tier ${tier} requires a minimum average monthly revenue of â‚¦${minRevNaira}`,
+    //   );
+    // }
 
     if (preferredRepaymentMonths > tierConfig.maxTimelineMonths) {
       throw new BadRequestException(
