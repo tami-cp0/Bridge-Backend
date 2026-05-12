@@ -50,7 +50,7 @@ export class AiProfileService {
     try {
       const response = await this.client.chat.completions.create({
         model: MODEL,
-        max_tokens: 1000,
+        max_completion_tokens: 2000,
         messages: [
           {
             role: 'system',
