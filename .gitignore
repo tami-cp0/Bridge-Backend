@@ -52,3 +52,6 @@ Thumbs.db
 CLAUDE.md
 docs/
 test.js
+# graphify
+.agents/
+graphify-out/
