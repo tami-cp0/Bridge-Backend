@@ -84,6 +84,7 @@ describe('SquadService sandbox API usage', () => {
       'Acme Bakery',
       '22123456789',
       '08012345678',
+      '0123456789',
     );
 
     expect(axios.create).toHaveBeenCalledWith(
