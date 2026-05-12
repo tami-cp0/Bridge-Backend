@@ -102,6 +102,7 @@ export class SquadService {
     businessName: string,
     bvn: string,
     phone: string,
+    beneficiaryAccount: string,
   ): Promise<{ virtualAccountNumber: string; reference: string }> {
     try {
       const response = await this.client.post<
@@ -113,6 +114,7 @@ export class SquadService {
         business_name: businessName,
         mobile_num: phone,
         bvn,
+        beneficiary_account: beneficiaryAccount,
         customer_identifier: businessId,
       });
 
