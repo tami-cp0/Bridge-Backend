@@ -49,9 +49,9 @@ describe('Mono API integration', () => {
   it('triggers income processing (async — data:null, result via webhook)', async () => {
     expect(monoSecretKey).toBeTruthy();
 
-    if (!testAccountId) {
+    if (!testAccountId || testAccountId.includes('1234567890') || monoSecretKey?.includes('sample') || monoSecretKey?.includes('test_sk_xl3')) {
       console.log(
-        'Skipping — MONO_TEST_ACCOUNT_ID not set. ' +
+        'Skipping — real MONO_TEST_ACCOUNT_ID or live key not set. ' +
           'Exchange a valid Mono Connect code first to get an account ID.',
       );
       return;
@@ -80,6 +80,11 @@ describe('Mono API integration', () => {
   // Requires Lookup access enabled in the Mono dashboard.
   it('verifies CAC via Mono', async () => {
     expect(monoSecretKey).toBeTruthy();
+
+    if (monoSecretKey?.includes('sample') || monoSecretKey?.includes('test_sk_xl3')) {
+      console.log('Skipping CAC verification — live Mono secret key not configured.');
+      return;
+    }
 
     const response = await axios.get(
       `${monoBaseUrl}/v3/lookup/cac`,

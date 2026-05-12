@@ -148,7 +148,6 @@ describe('AuthService registration', () => {
       '22123456789',
       '08098765432',
       'chidi@example.com',
-      '9876543210',
     );
     expect(squadService.createBusinessVirtualAccount).not.toHaveBeenCalled();
     expect(result).toEqual({
