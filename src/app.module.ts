@@ -4,6 +4,7 @@ import { ScheduleModule } from '@nestjs/schedule';
 import { configurations } from './config/config';
 import { validateConfig } from './config/config.validation';
 import { SquadModule } from './core/squad/squad.module';
+import { LedgerModule } from './core/ledger/ledger.module';
 import { MonoModule } from './core/mono/mono.module';
 import { AuthModule } from './core/auth/auth.module';
 import { VerificationModule } from './core/verification/verification.module';
@@ -29,6 +30,7 @@ import { PayoutsModule } from './core/payouts/payouts.module';
     }),
     ScheduleModule.forRoot(),
     SquadModule,
+    LedgerModule,
     MonoModule,
     AuthModule,
     VerificationModule,

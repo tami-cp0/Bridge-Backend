@@ -1,10 +1,12 @@
 import 'dotenv/config';
-import { neon } from '@neondatabase/serverless';
-import { drizzle } from 'drizzle-orm/neon-http';
+import ws from 'ws';
+import { Pool, neonConfig } from '@neondatabase/serverless';
+import { drizzle } from 'drizzle-orm/neon-serverless';
 import * as schema from './schema';
 
-// Neon uses HTTP-based postgres, so no persistent connection pool is needed
-const sql = neon(process.env.DATABASE_URL!);
-export const db = drizzle(sql, { schema });
+neonConfig.webSocketConstructor = ws;
+
+const pool = new Pool({ connectionString: process.env.DATABASE_URL! });
+export const db = drizzle(pool, { schema });
 
 export type Db = typeof db;
