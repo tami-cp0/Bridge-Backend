@@ -1,4 +1,4 @@
-﻿import {
+import {
   Injectable,
   BadRequestException,
   ConflictException,
@@ -26,8 +26,7 @@ const HORIZON_RATE_PER_MONTH = 0.5; // percent added per month beyond the base h
 
 // Sweep rate bounds
 const SWEEP_RATE_MIN = 5; // floor â€” extend horizon instead of going below this
-const SWEEP_RATE_WARN = 12; // block above this; business must request less or extend horizon
-const ALLOWED_MONTHS = [12, 15, 18, 21, 24];
+const SWEEP_RATE_WARN = 15; // block above this; business must request less or extend horizon
 
 type BridgeStanding = 'Seed' | 'Established' | 'Elite';
 
@@ -96,7 +95,7 @@ export class ListingsService {
     // if (avgMonthlyInflow < tierConfig.minRevenueKobo) {
     //   const minRevNaira = (tierConfig.minRevenueKobo / 100).toLocaleString();
     //   throw new BadRequestException(
-    //     `Tier ${tier} requires a minimum average monthly revenue of â‚¦${minRevNaira}`,
+    //     `Tier ${tier} requires a minimum average monthly revenue of ₦${minRevNaira}`,
     //   );
     // }
 
@@ -106,76 +105,102 @@ export class ListingsService {
       );
     }
 
+    // Hard ceiling: capital <= revenueMultiple × avgMonthlyInflow
     const maxCapitalByMultiple = Math.floor(
       avgMonthlyInflow * tierConfig.revenueMultiple,
     );
     if (capitalRequested > maxCapitalByMultiple) {
       const maxNaira = (maxCapitalByMultiple / 100).toLocaleString();
       throw new BadRequestException(
-        `Tier ${tier} businesses can raise up to ${tierConfig.revenueMultiple}Ã— their average monthly revenue (â‚¦${maxNaira})`,
+        `Tier ${tier} businesses can raise up to ${tierConfig.revenueMultiple}× their average monthly revenue (₦${maxNaira})`,
       );
     }
 
-    // Pass 1: apply Bridge Rating reduction to the base rate
+    // Base rate adjusted down for higher-rated businesses (Established −5%, Elite −10%)
     const standing = rating?.standing ?? 'Seed';
     const ratingReduction = STANDING_REDUCTIONS[standing] ?? 0;
     const ratingAdjustedRate = BASE_RETURN_RATE + ratingReduction;
 
-    const pass1ReturnAmount = Math.round(
-      capitalRequested * (1 + ratingAdjustedRate / 100),
-    );
-    const rawSharePercent1 =
-      (pass1ReturnAmount / avgMonthlyInflow / preferredRepaymentMonths) * 100;
-    const rawRounded = Math.round(rawSharePercent1 * 10) / 10;
-
-    if (rawRounded > SWEEP_RATE_WARN) {
-      const maxCapitalKobo = Math.floor(
-        ((SWEEP_RATE_WARN / 100) *
-          avgMonthlyInflow *
-          preferredRepaymentMonths) /
-          (1 + ratingAdjustedRate / 100),
-      );
-      const minMonths =
-        ALLOWED_MONTHS.find(
-          (m) =>
-            (pass1ReturnAmount / avgMonthlyInflow / m) * 100 <= SWEEP_RATE_WARN,
-        ) ?? ALLOWED_MONTHS[ALLOWED_MONTHS.length - 1];
-      const capitalNaira = (capitalRequested / 100).toLocaleString();
-      const maxCapitalNaira = (maxCapitalKobo / 100).toLocaleString();
-      throw new BadRequestException(
-        `A ${preferredRepaymentMonths}-month repayment on â‚¦${capitalNaira} works out to ${rawRounded.toFixed(1)}% of your monthly revenue per sweep. The ceiling is ${SWEEP_RATE_WARN}%.\n\nTwo ways to fix it:\n- Request â‚¦${maxCapitalNaira} or less and keep the ${preferredRepaymentMonths}-month timeline\n- Keep â‚¦${capitalNaira} and extend to ${minMonths} months`,
-      );
-    }
-
-    const revenueSharePercent =
-      rawRounded < SWEEP_RATE_MIN ? SWEEP_RATE_MIN : rawRounded;
-
-    const pass1Months = Math.ceil(
-      pass1ReturnAmount / ((avgMonthlyInflow * revenueSharePercent) / 100),
-    );
-
-    // Pass 2: apply horizon bump then clamp to platform bounds
+    // Longer timelines earn a premium: +0.5% per month beyond the 12-month anchor, capped at 40%
     const horizonBump =
-      Math.max(0, pass1Months - HORIZON_BASE_MONTHS) * HORIZON_RATE_PER_MONTH;
+      Math.max(0, preferredRepaymentMonths - HORIZON_BASE_MONTHS) *
+      HORIZON_RATE_PER_MONTH;
     const totalReturnPercent = Math.min(
       MAX_RETURN_RATE,
       Math.max(MIN_RETURN_RATE, ratingAdjustedRate + horizonBump),
     );
 
+    // Total amount the business must repay = capital × (1 + returnRate)
     const totalReturnAmount = Math.round(
       capitalRequested * (1 + totalReturnPercent / 100),
     );
+    // Revenue share needed each month = totalOwed / (months × monthlyRevenue)
+    const rawSharePercent =
+      (totalReturnAmount / avgMonthlyInflow / preferredRepaymentMonths) * 100;
+    const rawRounded = Math.round(rawSharePercent * 10) / 10; // one decimal place
+
+    if (rawRounded > SWEEP_RATE_WARN) {
+      // Max capital that fits under the 15% ceiling at this timeline: rearranges the share% formula
+      const maxCapitalKobo = Math.floor(
+        ((SWEEP_RATE_WARN / 100) *
+          avgMonthlyInflow *
+          preferredRepaymentMonths) /
+          (1 + totalReturnPercent / 100),
+      );
+
+      // Find the earliest month at which the requested capital fits under 15%
+      // (re-runs the full formula for each candidate month using that month's rate)
+      let minMonths: number | null = null;
+      for (
+        let m = preferredRepaymentMonths + 1;
+        m <= tierConfig.maxTimelineMonths;
+        m++
+      ) {
+        const hb =
+          Math.max(0, m - HORIZON_BASE_MONTHS) * HORIZON_RATE_PER_MONTH;
+        const trp = Math.min(
+          MAX_RETURN_RATE,
+          Math.max(MIN_RETURN_RATE, ratingAdjustedRate + hb),
+        );
+        const tra = capitalRequested * (1 + trp / 100); // total owed at this month's rate
+        if ((tra / avgMonthlyInflow / m) * 100 <= SWEEP_RATE_WARN) {
+          minMonths = m;
+          break;
+        }
+      }
+
+      const capitalNaira = (capitalRequested / 100).toLocaleString();
+      const maxCapitalNaira = (maxCapitalKobo / 100).toLocaleString();
+
+      const optionA = `Option A: Request ₦${maxCapitalNaira} or less over ${preferredRepaymentMonths} months`;
+      const optionB = minMonths
+        ? `\nOption B: Keep ₦${capitalNaira} and extend repayment to ${minMonths} months`
+        : '';
+
+      throw new BadRequestException(
+        `You have exceeded the maximum revenue share of 15% (${rawRounded.toFixed(
+          1,
+        )}%). Either go back and:\n${optionA}${optionB}`,
+      );
+    }
+
+    // Floor at 5% — if the natural rate is lower, lock it at 5% and let the timeline extend
+    const revenueSharePercent =
+      rawRounded < SWEEP_RATE_MIN ? SWEEP_RATE_MIN : rawRounded;
+
+    // How many months to fully repay at this sweep rate and average revenue
     const targetRepaymentMonths = Math.ceil(
       totalReturnAmount / ((avgMonthlyInflow * revenueSharePercent) / 100),
     );
+    // Kobo swept per month assuming revenue stays exactly at average
     const monthlySweepAtAverage = Math.round(
       (avgMonthlyInflow * revenueSharePercent) / 100,
     );
 
-    // Capital is disbursed in three tranches: 40% on funding, 30% after 2nd sweep, 30% after 4th sweep
+    // Capital disbursed in three tranches: 40% on full funding, 30% after 2nd sweep, 30% after 4th sweep
     const tranche1 = Math.round(capitalRequested * 0.4);
     const tranche2 = Math.round(capitalRequested * 0.3);
-    const tranche3 = capitalRequested - tranche1 - tranche2;
+    const tranche3 = capitalRequested - tranche1 - tranche2; // remainder avoids rounding drift
 
     return {
       capitalRequested,
@@ -227,7 +252,7 @@ export class ListingsService {
     );
 
     const [user] = await db.select().from(users).where(eq(users.id, userId));
-    // Generate the AI narrative using OpenAI â€” this is what investors read
+    // Generate the AI narrative using OpenAI” this is what investors read
     const aiProfile = await this.aiProfileService.generateProfile({
       businessName: bp.businessName,
       sector: bp.sector,
