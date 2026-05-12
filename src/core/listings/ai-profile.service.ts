@@ -78,6 +78,7 @@ export class AiProfileService {
         : undefined;
 
     if (status && status >= 400 && status < 500) {
+      console.log(err);
       throw new BadRequestException('AI profile request rejected');
     }
     if (status && status === 503) {
