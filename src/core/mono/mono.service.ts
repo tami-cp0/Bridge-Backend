@@ -14,6 +14,153 @@ import axios, { AxiosInstance } from 'axios';
 export class MonoService {
   private readonly logger = new Logger(MonoService.name);
   private readonly client: AxiosInstance;
+  private readonly mockIncomePayloads = [
+    {
+      status: 'successful',
+      message: 'Income retrieved successfully',
+      data: {
+        income_summary: {
+          total_income: 2400000,
+          annual_income: 28800000,
+          monthly_income: 200000,
+          average_monthly_income: 200000,
+          income_source_type: 'BANK',
+          employer: 'Mock Corp Nigeria',
+        },
+        income_streams: [
+          {
+            income_type: 'SALARY',
+            frequency: 'MONTHLY',
+            monthly_average: 200000,
+            average_income_amount: 200000,
+            last_income_amount: 200000,
+            currency: 'NGN',
+            stability: 0.72,
+            last_income_description: 'MONTHLY SALARY / MOCK CORP',
+            last_income_date: '2026-05-01',
+            periods_with_income: 12,
+            number_of_incomes: 12,
+          },
+        ],
+      },
+    },
+    {
+      status: 'successful',
+      message: 'Income retrieved successfully',
+      data: {
+        income_summary: {
+          total_income: 7200000,
+          annual_income: 86400000,
+          monthly_income: 600000,
+          average_monthly_income: 600000,
+          income_source_type: 'BANK',
+          employer: 'Mock Corp Nigeria',
+        },
+        income_streams: [
+          {
+            income_type: 'SALARY',
+            frequency: 'MONTHLY',
+            monthly_average: 600000,
+            average_income_amount: 600000,
+            last_income_amount: 600000,
+            currency: 'NGN',
+            stability: 0.8,
+            last_income_description: 'MONTHLY SALARY / MOCK CORP',
+            last_income_date: '2026-05-01',
+            periods_with_income: 12,
+            number_of_incomes: 12,
+          },
+        ],
+      },
+    },
+    {
+      status: 'successful',
+      message: 'Income retrieved successfully',
+      data: {
+        income_summary: {
+          total_income: 12000000,
+          annual_income: 144000000,
+          monthly_income: 1000000,
+          average_monthly_income: 1000000,
+          income_source_type: 'BANK',
+          employer: 'Mock Corp Nigeria',
+        },
+        income_streams: [
+          {
+            income_type: 'SALARY',
+            frequency: 'MONTHLY',
+            monthly_average: 1000000,
+            average_income_amount: 1000000,
+            last_income_amount: 1000000,
+            currency: 'NGN',
+            stability: 0.88,
+            last_income_description: 'MONTHLY SALARY / MOCK CORP',
+            last_income_date: '2026-05-01',
+            periods_with_income: 12,
+            number_of_incomes: 12,
+          },
+        ],
+      },
+    },
+    {
+      status: 'successful',
+      message: 'Income retrieved successfully',
+      data: {
+        income_summary: {
+          total_income: 21000000,
+          annual_income: 252000000,
+          monthly_income: 1750000,
+          average_monthly_income: 1750000,
+          income_source_type: 'BANK',
+          employer: 'Mock Corp Nigeria',
+        },
+        income_streams: [
+          {
+            income_type: 'SALARY',
+            frequency: 'MONTHLY',
+            monthly_average: 1750000,
+            average_income_amount: 1750000,
+            last_income_amount: 1750000,
+            currency: 'NGN',
+            stability: 0.9,
+            last_income_description: 'MONTHLY SALARY / MOCK CORP',
+            last_income_date: '2026-05-01',
+            periods_with_income: 12,
+            number_of_incomes: 12,
+          },
+        ],
+      },
+    },
+    {
+      status: 'successful',
+      message: 'Income retrieved successfully',
+      data: {
+        income_summary: {
+          total_income: 36000000,
+          annual_income: 432000000,
+          monthly_income: 3000000,
+          average_monthly_income: 3000000,
+          income_source_type: 'BANK',
+          employer: 'Mock Corp Nigeria',
+        },
+        income_streams: [
+          {
+            income_type: 'SALARY',
+            frequency: 'MONTHLY',
+            monthly_average: 3000000,
+            average_income_amount: 3000000,
+            last_income_amount: 3000000,
+            currency: 'NGN',
+            stability: 0.95,
+            last_income_description: 'MONTHLY SALARY / MOCK CORP',
+            last_income_date: '2026-05-01',
+            periods_with_income: 12,
+            number_of_incomes: 12,
+          },
+        ],
+      },
+    },
+  ];
 
   constructor(@Inject(MonoConfig.KEY) monoCfg: MonoConfigType) {
     this.client = axios.create({
@@ -23,6 +170,11 @@ export class MonoService {
         'Content-Type': 'application/json',
       },
     });
+  }
+
+  getMockIncomePayload() {
+    const index = Math.floor(Math.random() * this.mockIncomePayloads.length);
+    return this.mockIncomePayloads[index];
   }
 
   // Exchanges the Mono Connect code returned by the frontend widget for an account ID.

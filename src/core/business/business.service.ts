@@ -56,19 +56,21 @@ export class BusinessService {
 
     const accountId = await this.monoService.exchangeCode(code);
 
+    const mockIncome = this.monoService.getMockIncomePayload();
+    const mockMonthlyIncome = Number(
+      mockIncome?.data?.income_summary?.monthly_income ?? 0,
+    );
+
     await db
       .update(businessProfiles)
       .set({
         bankConnected: true,
         monoAccountId: accountId,
         monoLinked: true,
+        monoAverageMonthlyInflow: mockMonthlyIncome || null,
         updatedAt: new Date(),
       })
       .where(eq(businessProfiles.userId, userId));
-
-    // Trigger income analysis — Mono processes income async and delivers the result
-    // via the mono.events.account_income webhook which updates monoAverageMonthlyInflow
-    await this.monoService.triggerIncomeProcessing(accountId);
 
     return { connected: true, averageMonthlyInflow: null };
   }
