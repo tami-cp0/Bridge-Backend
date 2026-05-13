@@ -20,7 +20,7 @@ export const bridgeRatings = pgTable('bridge_ratings', {
   repaymentConsistencyScore: numeric('repayment_consistency_score', {
     precision: 5,
     scale: 2,
-  }).default('0'),
+  }).default('0'),  // max 30 pts (merged with former communication score)
   transactionVolumeScore: numeric('transaction_volume_score', {
     precision: 5,
     scale: 2,
@@ -32,10 +32,7 @@ export const bridgeRatings = pgTable('bridge_ratings', {
   cacBonusScore: numeric('cac_bonus_score', { precision: 5, scale: 2 }).default(
     '0',
   ),
-  communicationScore: numeric('communication_score', {
-    precision: 5,
-    scale: 2,
-  }).default('0'),
+
   lastCalculatedAt: timestamp('last_calculated_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow(),
 });

@@ -16,7 +16,7 @@ export class BridgeRatingResponseDto {
   @ApiProperty({ example: '20.00', description: 'Max 30 pts' })
   repaymentSpeedScore: string;
 
-  @ApiProperty({ example: '18.00', description: 'Max 25 pts' })
+  @ApiProperty({ example: '22.00', description: 'Max 30 pts' })
   repaymentConsistencyScore: string;
 
   @ApiProperty({ example: '14.00', description: 'Max 20 pts' })
@@ -31,8 +31,6 @@ export class BridgeRatingResponseDto {
   })
   cacBonusScore: string;
 
-  @ApiProperty({ example: '3.50', description: 'Max 5 pts' })
-  communicationScore: string;
 
   @ApiProperty()
   lastCalculatedAt: Date;

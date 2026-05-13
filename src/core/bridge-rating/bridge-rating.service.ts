@@ -1,4 +1,4 @@
-﻿import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { db } from '../../db';
 import {
   businessProfiles,
@@ -73,7 +73,6 @@ export class BridgeRatingService {
     );
     const revenueConsistencyScore = this.calcRevenueConsistency(allSweepEvents);
     const cacBonusScore = bp.cacVerified ? 5 : 0;
-    const communicationScore = this.calcCommunication(allSweepEvents);
 
     const overallScore = Math.min(
       100,
@@ -81,8 +80,7 @@ export class BridgeRatingService {
         repaymentConsistencyScore +
         transactionVolumeScore +
         revenueConsistencyScore +
-        cacBonusScore +
-        communicationScore,
+        cacBonusScore,
     );
 
     const newStanding = scoreToStanding(overallScore);
@@ -99,7 +97,6 @@ export class BridgeRatingService {
         transactionVolumeScore: String(transactionVolumeScore.toFixed(2)),
         revenueConsistencyScore: String(revenueConsistencyScore.toFixed(2)),
         cacBonusScore: String(cacBonusScore),
-        communicationScore: String(communicationScore.toFixed(2)),
         lastCalculatedAt: new Date(),
         updatedAt: new Date(),
       })
@@ -119,7 +116,6 @@ export class BridgeRatingService {
         transactionVolumeScore,
         revenueConsistencyScore,
         cacBonusScore,
-        communicationScore,
         sweepEventCount: allSweepEvents.length,
         listingCount: allListings.length,
       },
@@ -262,25 +258,29 @@ export class BridgeRatingService {
     return (totalRatio / count / 1.5) * 30;
   }
 
-  // Max 25 pts â€” deducts 3 pts for each payment gap longer than 14 days
+  // Max 30 pts — awards points for on-time payment gaps (≤ 14 days apart)
   private calcRepaymentConsistency(
     events: (typeof sweepEvents.$inferSelect)[],
   ): number {
-    let score = 25;
+    if (events.length < 2) return 0;
+
     const sorted = [...events].sort(
       (a, b) =>
         new Date(a.processedAt).getTime() - new Date(b.processedAt).getTime(),
     );
+
+    let onTimeGaps = 0;
+    const totalGaps = sorted.length - 1;
 
     for (let i = 1; i < sorted.length; i++) {
       const gap =
         (new Date(sorted[i].processedAt).getTime() -
           new Date(sorted[i - 1].processedAt).getTime()) /
         (1000 * 60 * 60 * 24);
-      if (gap > 14) score -= 3;
+      if (gap <= 14) onTimeGaps++;
     }
 
-    return Math.max(0, score);
+    return (onTimeGaps / totalGaps) * 30;
   }
 
   // Max 20 pts â€” compares last 30 days' incoming payments to the business's Mono baseline
@@ -316,7 +316,7 @@ export class BridgeRatingService {
       (e) => e.processedAt && new Date(e.processedAt) >= sixtyDaysAgo,
     );
 
-    if (recent.length < 2) return 7.5;
+    if (recent.length < 2) return 0;
 
     const weeklyMap = new Map<string, number>();
     for (const e of recent) {
@@ -329,7 +329,7 @@ export class BridgeRatingService {
     }
 
     const values = [...weeklyMap.values()];
-    if (values.length < 2) return 15;
+    if (values.length < 2) return 0;
 
     const mean = values.reduce((s, v) => s + v, 0) / values.length;
     const variance =
@@ -339,26 +339,5 @@ export class BridgeRatingService {
     const cv = mean > 0 ? stdDev / mean : 1;
 
     return Math.max(0, 15 - cv * 15);
-  }
-
-  // Max 5 pts â€” penalises long gaps between payments (same logic as consistency but smaller weight)
-  private calcCommunication(
-    events: (typeof sweepEvents.$inferSelect)[],
-  ): number {
-    let score = 5;
-    const sorted = [...events].sort(
-      (a, b) =>
-        new Date(a.processedAt).getTime() - new Date(b.processedAt).getTime(),
-    );
-
-    for (let i = 1; i < sorted.length; i++) {
-      const gap =
-        (new Date(sorted[i].processedAt).getTime() -
-          new Date(sorted[i - 1].processedAt).getTime()) /
-        (1000 * 60 * 60 * 24);
-      if (gap > 14) score -= 2;
-    }
-
-    return Math.max(0, Math.min(5, score));
   }
 }
