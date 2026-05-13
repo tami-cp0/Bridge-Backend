@@ -1,4 +1,4 @@
-﻿import {
+import {
   Controller,
   Get,
   Post,
@@ -182,5 +182,80 @@ export class InvestorController {
     @Body() dto: UpdatePreferencesDto,
   ) {
     return this.investorService.updatePreferences(userId, dto);
+  }
+
+  @Get(':userId/returns')
+  @UseGuards(JwtAuthGuard)
+  @ApiParam({ name: 'userId', description: 'Investor user UUID' })
+  @ApiQuery({
+    name: 'period',
+    required: true,
+    enum: ['daily', 'monthly', 'yearly'],
+    description: 'Time bucket granularity',
+  })
+  @ApiQuery({
+    name: 'year',
+    required: false,
+    type: Number,
+    description: 'Required for daily and monthly periods',
+  })
+  @ApiQuery({
+    name: 'month',
+    required: false,
+    type: Number,
+    description: 'Required for daily period (1–12)',
+  })
+  @ApiOperation({
+    summary:
+      'Get investor returns over time — time-series of sweep distributions received',
+  })
+  @ApiResponse({
+    status: 200,
+    schema: {
+      type: 'object',
+      properties: {
+        period: {
+          type: 'string',
+          enum: ['daily', 'monthly', 'yearly'],
+          example: 'monthly',
+        },
+        year: { type: 'number', example: 2025, nullable: true },
+        month: { type: 'number', example: null, nullable: true },
+        data: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              label: { type: 'string', example: '2025-03' },
+              totalReturnsReceived: {
+                type: 'number',
+                example: 45000,
+                description: 'Returns received in this period, in kobo',
+              },
+              cumulativeReturns: {
+                type: 'number',
+                example: 320000,
+                description: 'Running total of all returns up to this period, in kobo',
+              },
+            },
+          },
+        },
+      },
+    },
+  })
+  @ApiResponse({ status: 400, description: 'Missing year or month for the chosen period' })
+  @ApiResponse({ status: 401, description: 'Unauthorized — missing or invalid token' })
+  getReturns(
+    @Param('userId') userId: string,
+    @Query('period') period: 'daily' | 'monthly' | 'yearly',
+    @Query('year') year?: string,
+    @Query('month') month?: string,
+  ) {
+    return this.investorService.getReturns(
+      userId,
+      period,
+      year ? Number(year) : undefined,
+      month ? Number(month) : undefined,
+    );
   }
 }

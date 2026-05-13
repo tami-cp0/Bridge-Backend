@@ -1,12 +1,19 @@
-import { Injectable, Inject, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  Inject,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { db } from '../../db';
 import {
   investorProfiles,
   investments,
   notifications,
   users,
+  sweepDistributions,
+  sweepEvents,
 } from '../../db/schema';
-import { eq, desc } from 'drizzle-orm';
+import { eq, desc, inArray } from 'drizzle-orm';
 import { UpdatePreferencesDto } from './dto/update-preferences.dto';
 import { SquadService } from '../squad/squad.service';
 import { LedgerService } from '../ledger/ledger.service';
@@ -179,5 +186,79 @@ export class InvestorService {
       paymentLink: `${payBase}/${squadVirtualAccountNumber}`,
       virtualAccountNumber: squadVirtualAccountNumber,
     };
+  }
+
+  async getReturns(
+    userId: string,
+    period: 'daily' | 'monthly' | 'yearly',
+    year?: number,
+    month?: number,
+  ) {
+    if (period === 'daily' && (!year || !month)) {
+      throw new BadRequestException(
+        'year and month are required for daily period',
+      );
+    }
+    if (period === 'monthly' && !year) {
+      throw new BadRequestException('year is required for monthly period');
+    }
+
+    // Get all investments for this investor
+    const allInvestments = await db
+      .select({ id: investments.id })
+      .from(investments)
+      .where(eq(investments.investorId, userId));
+
+    if (!allInvestments.length) return { period, year, month, data: [] };
+
+    const investmentIds = allInvestments.map((i) => i.id);
+
+    // Get all distributions joined with sweep events for timestamps
+    const distributions = await db
+      .select({
+        amountDistributed: sweepDistributions.amountDistributed,
+        processedAt: sweepEvents.processedAt,
+      })
+      .from(sweepDistributions)
+      .innerJoin(
+        sweepEvents,
+        eq(sweepEvents.id, sweepDistributions.sweepEventId),
+      )
+      .where(inArray(sweepDistributions.investmentId, investmentIds));
+
+    // Group into time buckets
+    const buckets = new Map<string, number>();
+
+    for (const d of distributions) {
+      const date = new Date(d.processedAt);
+      const y = date.getFullYear();
+      const m = date.getMonth() + 1;
+      const day = date.getDate();
+
+      if (period === 'daily' && (y !== year || m !== month)) continue;
+      if (period === 'monthly' && y !== year) continue;
+
+      const key =
+        period === 'daily'
+          ? `${y}-${String(m).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+          : period === 'monthly'
+            ? `${y}-${String(m).padStart(2, '0')}`
+            : String(y);
+
+      buckets.set(key, (buckets.get(key) ?? 0) + (d.amountDistributed ?? 0));
+    }
+
+    // Sort chronologically and compute cumulative totals
+    const sorted = Array.from(buckets.entries()).sort((a, b) =>
+      a[0].localeCompare(b[0]),
+    );
+
+    let cumulative = 0;
+    const data = sorted.map(([label, totalReturnsReceived]) => {
+      cumulative += totalReturnsReceived;
+      return { label, totalReturnsReceived, cumulativeReturns: cumulative };
+    });
+
+    return { period, year: year ?? null, month: month ?? null, data };
   }
 }
