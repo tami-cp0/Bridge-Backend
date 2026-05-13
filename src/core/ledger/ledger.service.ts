@@ -2,7 +2,7 @@ import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { sql, eq, and } from 'drizzle-orm';
 import { db } from '../../db';
 import type { Db } from '../../db';
-import { internalLedgerEntries } from '../../db/schema';
+import { internalLedgerEntries, users } from '../../db/schema';
 
 type TxOrDb = Parameters<Parameters<Db['transaction']>[0]>[0] | Db;
 
@@ -14,6 +14,7 @@ export type LedgerPurpose =
   | 'sweep_contribution' // business debit, portion of incoming revenue owed to investors/platform
   | 'sweep_distribution' // investor credit from sweep
   | 'default_pool' // investor debit, 4% protection contribution
+  | 'service_fee' // platform revenue
   | 'payout' // user debit when withdrawing to their bank
   | 'payout_reversed'; // user credit when payout fails/reverses
 
@@ -29,6 +30,24 @@ export interface LedgerEntryInput {
 @Injectable()
 export class LedgerService {
   private readonly logger = new Logger(LedgerService.name);
+
+  async getSystemUserId(tx?: TxOrDb): Promise<string> {
+    const executor = tx ?? db;
+    const SYSTEM_EMAIL = 'system@bridge.app';
+    const SYSTEM_PHONE = '07047000000';
+    const [existing] = await executor.select().from(users).where(eq(users.email, SYSTEM_EMAIL));
+    if (existing) return existing.id;
+    
+    const [systemUser] = await executor.insert(users).values({
+      fullName: 'Bridge Platform',
+      email: SYSTEM_EMAIL,
+      phone: SYSTEM_PHONE,
+      passwordHash: 'system',
+      userType: 'business',
+      beneficiaryAccount: '0000000000',
+    }).returning();
+    return systemUser.id;
+  }
 
   async credit(input: LedgerEntryInput, tx?: TxOrDb) {
     if (input.amount <= 0) {

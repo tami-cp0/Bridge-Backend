@@ -230,19 +230,20 @@ export class SweepService {
     sweepEventId: string,
     sweepAmount: number,
   ) {
-    // TODO: implement platform service fee
-    // // 1. Calculate the Platform Service Fee (1%)
-    // const platformFee = Math.round(sweepAmount * 0.01);
-    // const amountToDistribute = sweepAmount - platformFee;
+    // 1. Calculate the Platform Service Fee (1%)
+    const platformFee = Math.round(sweepAmount * 0.01);
+    const amountToDistribute = sweepAmount - platformFee;
 
-    // // 2. Record the 1% as Platform Revenue in your Ledger
-    // await this.ledgerService.credit({
-    //   userId: PLATFORM_SYSTEM_ID, // You'll need a system user ID for this
-    //   amount: platformFee,
-    //   purpose: 'service_fee',
-    //   referenceId: sweepEventId,
-    //   referenceType: 'sweep_event',
-    // });
+    // 2. Record the 1% as Platform Revenue in your Ledger
+    const platformUserId = await this.ledgerService.getSystemUserId();
+    await this.ledgerService.credit({
+      userId: platformUserId,
+      amount: platformFee,
+      purpose: 'service_fee',
+      referenceId: sweepEventId,
+      referenceType: 'sweep_event',
+      squadTransactionReference: `fee-${uuidv4()}`,
+    });
 
     const activeInvestments = await db
       .select()
@@ -256,7 +257,7 @@ export class SweepService {
 
     for (const investment of activeInvestments) {
       const sharePercent = Number(investment.sharePercent ?? 0);
-      const distributionAmount = Math.round((sweepAmount * sharePercent) / 100);
+      const distributionAmount = Math.round((amountToDistribute * sharePercent) / 100);
       if (distributionAmount <= 0) continue;
 
       const distRef = `dist-${uuidv4()}`;
@@ -436,6 +437,25 @@ export class SweepService {
         squadTransferReference: ref,
       })
       .where(eq(tranches.id, tranche.id));
+
+    // Ledger accounting for tranche release
+    await this.ledgerService.credit({
+      userId: businessUserId,
+      amount: tranche.amount,
+      purpose: 'tranche_release',
+      referenceId: tranche.id,
+      referenceType: 'tranche',
+      squadTransactionReference: `release-${ref}`,
+    });
+
+    await this.ledgerService.debit({
+      userId: businessUserId,
+      amount: tranche.amount,
+      purpose: 'tranche_payout',
+      referenceId: tranche.id,
+      referenceType: 'tranche',
+      squadTransactionReference: ref,
+    });
 
     await db.insert(notifications).values({
       userId: businessUserId,

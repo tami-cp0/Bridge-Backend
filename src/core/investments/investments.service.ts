@@ -116,6 +116,17 @@ export class InvestmentsService {
       squadTransactionReference: ref,
     });
 
+    // Credit the default pool
+    const systemUserId = await this.ledgerService.getSystemUserId();
+    await this.ledgerService.credit({
+      userId: systemUserId,
+      amount: defaultPoolContribution,
+      purpose: 'default_pool',
+      referenceId: investment.id,
+      referenceType: 'investment',
+      squadTransactionReference: `pool-${uuidv4()}`,
+    });
+
     const oldTotalCommitted = listing.totalCommitted ?? 0;
     const capitalRequested = listing.capitalRequested ?? 0;
     const newTotalCommitted = oldTotalCommitted + dto.amountCommitted;
@@ -260,6 +271,25 @@ export class InvestmentsService {
         squadTransferReference: trancheRef,
       })
       .where(eq(tranches.id, tranche1.id));
+
+    // Ledger accounting for tranche release
+    await this.ledgerService.credit({
+      userId: bp.userId,
+      amount: tranche1.amount,
+      purpose: 'tranche_release',
+      referenceId: tranche1.id,
+      referenceType: 'tranche',
+      squadTransactionReference: `release-${trancheRef}`,
+    });
+
+    await this.ledgerService.debit({
+      userId: bp.userId,
+      amount: tranche1.amount,
+      purpose: 'tranche_payout',
+      referenceId: tranche1.id,
+      referenceType: 'tranche',
+      squadTransactionReference: trancheRef,
+    });
 
     await db.insert(notifications).values({
       userId: bp.userId,
