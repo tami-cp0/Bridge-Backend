@@ -37,6 +37,7 @@ export class SweepService {
   // own receives a payment (real or simulated). Funds land in the merchant
   // wallet; we record an internal credit for whoever owns the VA.
   async handleSquadWebhook(payload: Record<string, unknown>) {
+    console.log('handle reached', payload);
     const eventType = (payload.Event ?? payload.event) as string | undefined;
     const channel = payload.channel as string | undefined;
     // Squad sandbox often wraps fields under a `data` key; check both levels
@@ -45,8 +46,8 @@ export class SweepService {
 
     this.logger.log(
       `Squad webhook received — Event: ${eventType}, channel: ${channel ?? nestedChannel ?? 'none'}, ` +
-      `top-level VA: ${payload.virtual_account_number ?? 'none'}, ` +
-      `nested VA: ${nestedData.virtual_account_number ?? 'none'}`,
+        `top-level VA: ${payload.virtual_account_number ?? 'none'}, ` +
+        `nested VA: ${nestedData.virtual_account_number ?? 'none'}`,
     );
 
     const isPayment =
@@ -59,7 +60,7 @@ export class SweepService {
     if (!isPayment) {
       this.logger.warn(
         `Squad webhook skipped — no VA payment signal detected. ` +
-        `Full payload keys: ${Object.keys(payload).join(', ')}`,
+          `Full payload keys: ${Object.keys(payload).join(', ')}`,
       );
       return;
     }
@@ -83,8 +84,8 @@ export class SweepService {
     if (!virtualAccountNumber || !transactionRef) {
       this.logger.warn(
         `Missing fields in webhook — virtual_account_number: ${virtualAccountNumber ?? 'none'}, ` +
-        `transaction_reference: ${transactionRef ?? 'none'}. ` +
-        `Nested data keys: ${Object.keys(data).join(', ')}`,
+          `transaction_reference: ${transactionRef ?? 'none'}. ` +
+          `Nested data keys: ${Object.keys(data).join(', ')}`,
       );
       return;
     }

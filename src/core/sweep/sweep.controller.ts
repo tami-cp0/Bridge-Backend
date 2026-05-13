@@ -76,6 +76,8 @@ export class SweepController {
   ) {
     const rawBody = req.rawBody?.toString() ?? JSON.stringify(req.body);
 
+    console.log('Received Squad webhook', { signature, rawBody });
+
     if (signature) {
       const valid = this.squadService.verifyWebhookSignature(
         rawBody,
@@ -86,6 +88,8 @@ export class SweepController {
         throw new UnauthorizedException('Invalid webhook signature');
       }
     }
+
+    console.log('Squad webhook signature valid, processing payload');
 
     const payload = req.body as Record<string, unknown>;
     await this.sweepService.handleSquadWebhook(payload);
