@@ -125,8 +125,8 @@ export class SweepService {
 
     await db.insert(notifications).values({
       userId: user.id,
-      title: 'Deposit received',
-      body: `₦${(amount / 100).toLocaleString('en-NG')} was credited to your wallet.`,
+      title: `₦${(amount / 100).toLocaleString('en-NG')} deposit was successful`,
+      body: `Your wallet has been credited with ₦${(amount / 100).toLocaleString('en-NG')}.`,
     });
 
     // For businesses with an active listing, the deposit also triggers a sweep.
@@ -295,8 +295,8 @@ export class SweepService {
 
       await db.insert(notifications).values({
         userId: investment.investorId,
-        title: 'Return received',
-        body: `₦${(distributionAmount / 100).toLocaleString('en-NG')} was distributed to your wallet from a sweep.`,
+        title: `₦${(distributionAmount / 100).toLocaleString('en-NG')} return was successful`,
+        body: `Your wallet was credited with ₦${(distributionAmount / 100).toLocaleString('en-NG')} from a listing sweep.`,
       });
     }
   }
@@ -459,7 +459,7 @@ export class SweepService {
 
     await db.insert(notifications).values({
       userId: businessUserId,
-      title: `Tranche ${tranche.trancheNumber} released`,
+      title: `₦${(tranche.amount / 100).toLocaleString('en-NG')} Tranche ${tranche.trancheNumber} has been released.`,
       body: `₦${(tranche.amount / 100).toLocaleString('en-NG')} has been transferred to your bank account.`,
     });
   }

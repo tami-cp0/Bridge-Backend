@@ -49,7 +49,7 @@ export class InvestmentsService {
       throw new BadRequestException('Listing is not active');
 
     const [bp] = await db
-      .select({ userId: businessProfiles.userId })
+      .select({ userId: businessProfiles.userId, businessName: businessProfiles.businessName })
       .from(businessProfiles)
       .where(eq(businessProfiles.id, listing.businessId));
 
@@ -163,7 +163,7 @@ export class InvestmentsService {
 
     await db.insert(notifications).values({
       userId: investorUserId,
-      title: 'Investment confirmed',
+      title: `Successfully committed ₦${(dto.amountCommitted / 100).toLocaleString('en-NG')} into ${bp?.businessName ?? 'the listing'}`,
       body: `Your investment of ₦${(dto.amountCommitted / 100).toLocaleString('en-NG')} has been committed to the listing.`,
     });
 
@@ -293,7 +293,7 @@ export class InvestmentsService {
 
     await db.insert(notifications).values({
       userId: bp.userId,
-      title: 'Listing funded!',
+      title: `Listing funded! ₦${(tranche1.amount / 100).toLocaleString('en-NG')} Tranche 1 release was successful`,
       body: `Your listing has been fully funded. Tranche 1 (₦${(tranche1.amount / 100).toLocaleString('en-NG')}) has been released to your bank account.`,
     });
   }

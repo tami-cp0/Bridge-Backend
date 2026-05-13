@@ -164,8 +164,8 @@ export class BridgeRatingService {
       for (const inv of activeInvestments) {
         await db.insert(notifications).values({
           userId: inv.investorId,
-          title: 'Early warning',
-          body: `A business you invested in has had a significant rating drop. Review your portfolio.`,
+          title: `Early warning: ${bp.businessName ?? 'A business'} rating dropped`,
+          body: `${bp.businessName ?? 'A business'} you invested in has had a rating drop.`,
         });
       }
     }

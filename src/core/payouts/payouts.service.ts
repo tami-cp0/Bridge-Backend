@@ -160,7 +160,7 @@ export class PayoutsService {
 
     await db.insert(notifications).values({
       userId: user.userId,
-      title: 'Payout initiated',
+      title: `₦${formatNaira(amount)} payout initiated`,
       body: `Payout of ₦${formatNaira(amount)} to ${dto.accountName} has been initiated.`,
     });
 
@@ -225,7 +225,7 @@ export class PayoutsService {
       const isSuccess = SUCCESS_STATUSES.has(normalized);
       await db.insert(notifications).values({
         userId: user.userId,
-        title: isSuccess ? 'Payout completed' : 'Payout failed',
+        title: isSuccess ? `₦${formatNaira(existing.amount)} payout completed` : `₦${formatNaira(existing.amount)} payout failed`,
         body: isSuccess
           ? `Payout of ₦${formatNaira(existing.amount)} has completed.`
           : `Payout of ₦${formatNaira(existing.amount)} failed and your balance was restored.`,
