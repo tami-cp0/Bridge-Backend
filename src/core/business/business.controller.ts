@@ -1,4 +1,4 @@
-﻿import {
+import {
   Controller,
   Get,
   Post,
@@ -17,6 +17,7 @@ import {
 } from '@nestjs/swagger';
 import { BusinessService } from './business.service';
 import { SweepService } from '../sweep/sweep.service';
+import { LedgerService } from '../ledger/ledger.service';
 import { ConnectBankDto } from './dto/connect-bank.dto';
 import { BusinessGuard } from '../../common/guards/business.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -39,6 +40,7 @@ export class BusinessController {
   constructor(
     private businessService: BusinessService,
     private sweepService: SweepService,
+    private ledgerService: LedgerService,
   ) {}
 
   @Post('connect-bank')
@@ -111,6 +113,25 @@ export class BusinessController {
   @ApiResponse({ status: 404, description: 'Business profile not found' })
   getStats(@Param('userId') userId: string) {
     return this.businessService.getStats(userId);
+  }
+
+  @Get(':userId/balance')
+  @UseGuards(JwtAuthGuard)
+  @ApiParam({ name: 'userId', description: 'Business user UUID' })
+  @ApiOperation({ summary: 'Get the internal ledger balance for the business wallet' })
+  @ApiResponse({
+    status: 200,
+    schema: {
+      type: 'object',
+      properties: {
+        balance: { type: 'number', example: 150000, description: 'Available balance in kobo' },
+      },
+    },
+  })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  async getBalance(@Param('userId') userId: string) {
+    const balance = await this.ledgerService.getAvailableBalance(userId);
+    return { balance };
   }
 
   @Get(':userId/active-listing')
