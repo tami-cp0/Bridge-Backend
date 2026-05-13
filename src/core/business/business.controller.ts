@@ -6,6 +6,7 @@ import {
   Param,
   Query,
   UseGuards,
+  BadRequestException,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -97,6 +98,27 @@ export class BusinessController {
   @ApiResponse({ status: 404, description: 'Business profile not found' })
   getProfile(@Param('userId') userId: string) {
     return this.businessService.getProfile(userId);
+  }
+
+  @Post(':userId/simulate-revenue')
+  @UseGuards(BusinessGuard)
+  @ApiParam({ name: 'userId', description: 'Business user UUID' })
+  @ApiOperation({
+    summary: 'Simulate revenue by depositing 5% of monthly revenue every 10s for 1 minute',
+  })
+  @ApiResponse({ status: 201, description: 'Simulation started' })
+  @ApiResponse({ status: 400, description: 'No revenue to simulate from' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Forbidden' })
+  @ApiResponse({ status: 404, description: 'Profile or virtual account not found' })
+  simulateRevenue(
+    @Param('userId') userId: string,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    if (userId !== user.userId) {
+      throw new BadRequestException('You can only simulate revenue for your own business');
+    }
+    return this.businessService.simulateRevenue(userId);
   }
 
   @Get(':userId/stats')

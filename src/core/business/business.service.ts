@@ -1,4 +1,4 @@
-﻿import {
+import {
   Inject,
   Injectable,
   NotFoundException,
@@ -19,11 +19,14 @@ import {
 } from '../../db/schema';
 import { eq, and, or, inArray, desc, ne } from 'drizzle-orm';
 
+import { SquadService } from '../squad/squad.service';
+
 @Injectable()
 export class BusinessService {
   constructor(
     @Inject(SquadConfig.KEY) private squadCfg: SquadConfigType,
     private monoService: MonoService,
+    private squadService: SquadService,
   ) {}
 
   async getProfile(userId: string) {
@@ -73,6 +76,58 @@ export class BusinessService {
       .where(eq(businessProfiles.userId, userId));
 
     return { connected: true, averageMonthlyInflow: null };
+  }
+
+  async simulateRevenue(userId: string) {
+    const [bp] = await db
+      .select({ 
+        monoAverageMonthlyInflow: businessProfiles.monoAverageMonthlyInflow,
+        averageMonthlyRevenue: businessProfiles.averageMonthlyRevenue,
+      })
+      .from(businessProfiles)
+      .where(eq(businessProfiles.userId, userId));
+
+    if (!bp) throw new NotFoundException('Business profile not found');
+
+    const [user] = await db
+      .select({ squadVirtualAccountNumber: users.squadVirtualAccountNumber })
+      .from(users)
+      .where(eq(users.id, userId));
+
+    if (!user?.squadVirtualAccountNumber) {
+      throw new NotFoundException('Virtual account not found');
+    }
+
+    const baseline = bp.monoAverageMonthlyInflow ?? bp.averageMonthlyRevenue ?? 0;
+    if (baseline <= 0) {
+      throw new BadRequestException('Business has no recorded revenue to simulate from');
+    }
+
+    const depositAmount = Math.floor(baseline * 0.05);
+
+    // Run async loop: 6 times, every 10 seconds (total 1 minute)
+    (async () => {
+      for (let i = 0; i < 6; i++) {
+        try {
+          await this.squadService.simulatePayment(
+            user.squadVirtualAccountNumber!,
+            depositAmount
+          );
+        } catch (e) {
+          console.error('Failed to simulate revenue deposit', e);
+        }
+        if (i < 5) {
+          await new Promise(resolve => setTimeout(resolve, 10000));
+        }
+      }
+    })();
+
+    return {
+      message: 'Revenue simulation started',
+      deposits: 6,
+      intervalSeconds: 10,
+      amountPerDeposit: depositAmount,
+    };
   }
 
   async getStats(userId: string) {
