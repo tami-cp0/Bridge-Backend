@@ -39,18 +39,32 @@ export class SweepService {
   async handleSquadWebhook(payload: Record<string, unknown>) {
     const eventType = (payload.Event ?? payload.event) as string | undefined;
     const channel = payload.channel as string | undefined;
+    // Squad sandbox often wraps fields under a `data` key; check both levels
+    const nestedData = (payload.data ?? {}) as Record<string, unknown>;
+    const nestedChannel = nestedData.channel as string | undefined;
+
     this.logger.log(
-      `Squad webhook received — Event: ${eventType}, channel: ${channel}`,
+      `Squad webhook received — Event: ${eventType}, channel: ${channel ?? nestedChannel ?? 'none'}, ` +
+      `top-level VA: ${payload.virtual_account_number ?? 'none'}, ` +
+      `nested VA: ${nestedData.virtual_account_number ?? 'none'}`,
     );
 
     const isPayment =
       channel === 'virtual-account' ||
+      nestedChannel === 'virtual-account' ||
       !!payload.virtual_account_number ||
+      !!nestedData.virtual_account_number ||
       eventType === 'charge_successful';
 
-    if (isPayment) {
-      await this.handlePaymentSuccessful(payload);
+    if (!isPayment) {
+      this.logger.warn(
+        `Squad webhook skipped — no VA payment signal detected. ` +
+        `Full payload keys: ${Object.keys(payload).join(', ')}`,
+      );
+      return;
     }
+
+    await this.handlePaymentSuccessful(payload);
   }
 
   private async handlePaymentSuccessful(payload: Record<string, unknown>) {
@@ -62,9 +76,15 @@ export class SweepService {
     // VA webhooks send principal_amount (in kobo); other payment channels use amount
     const amount = Number(data.principal_amount ?? data.amount ?? 0);
 
+    this.logger.log(
+      `Processing payment — VA: ${virtualAccountNumber}, ref: ${transactionRef}, amount (kobo): ${amount}`,
+    );
+
     if (!virtualAccountNumber || !transactionRef) {
       this.logger.warn(
-        'Missing virtual_account_number or transaction_reference in webhook',
+        `Missing fields in webhook — virtual_account_number: ${virtualAccountNumber ?? 'none'}, ` +
+        `transaction_reference: ${transactionRef ?? 'none'}. ` +
+        `Nested data keys: ${Object.keys(data).join(', ')}`,
       );
       return;
     }
@@ -97,6 +117,10 @@ export class SweepService {
       purpose: 'deposit',
       squadTransactionReference: transactionRef,
     });
+
+    this.logger.log(
+      `Ledger credited — userId: ${user.id}, amount: ${amount} kobo (₦${(amount / 100).toFixed(2)}), ref: ${transactionRef}`,
+    );
 
     await db.insert(notifications).values({
       userId: user.id,
