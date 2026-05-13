@@ -43,9 +43,15 @@ Open `.env` and fill in every value:
 | `OPENAI_API_KEY` | platform.openai.com → API keys |
 | `SQUAD_SECRET_KEY` | sandbox.squadco.com → Settings → API & Webhook tab |
 | `SQUAD_BASE_URL` | Leave as `https://sandbox-api-d.squadco.com` |
-| `SQUAD_MERCHANT_ID` | sandbox.squadco.com → Profile → your merchant ID (used as a prefix on payout `transaction_reference`) |
+| `SQUAD_MERCHANT_ID` | sandbox.squadco.com → Profile → your merchant ID |
 | `SWEEP_TOLERANCE_PERCENT` | Leave as `2` |
 | `MAX_DEAL_DURATION_MONTHS` | Leave as `24` |
+| `MONO_PUBLIC_KEY` | app.mono.co → Apps → Public Key |
+| `MONO_SECRET_KEY` | app.mono.co → Apps → Secret Key |
+| `MONO_WEBHOOK_SECRET` | app.mono.co → Webhooks → Secret |
+| `MONO_TEST_ACCOUNT_ID` | Account ID from successful connect widget code exchange |
+| `FRONTEND_URL` | Frontend URL for CORS/redirects, e.g. `http://localhost:3001` |
+| `PORT` | Local dev port, e.g. `3000` |
 
 ---
 
@@ -101,17 +107,22 @@ npm run start:dev
 
 ```
 src/
-├── auth/           # Register business/investor, BVN verify, login
-├── business/       # Business dashboard — profile, payments, sweep summary
-├── investor/       # Investor dashboard — summary, wallet, deals
-├── listings/       # Browse, create, term calculator, AI-generated profile
-├── investments/    # Commit capital, tranche releases on funding
-├── sweep/          # Revenue sweep engine + Squad webhook handler
-├── bridge-rating/  # 6-component credit scoring (100-point scale)
-├── squad/          # Squad payment service wrapper (sandbox)
-├── platform/       # Platform-wide stats for landing page
-├── notifications/  # In-app notification read/unread
-├── verification/   # CAC registration verification
-├── scheduler/      # Cron job for overdue deal detection
-└── db/             # Drizzle ORM schema and Neon connection
+├── core/
+│   ├── auth/           # Register business/investor, login
+│   ├── bridge-rating/  # 6-component credit scoring (100-point scale)
+│   ├── business/       # Business dashboard — profile, payments, stats, bank connect
+│   ├── investments/    # Commit capital, tranche releases on funding
+│   ├── investor/       # Investor dashboard — summary, wallet, deposit simulation
+│   ├── ledger/         # Source of truth platform balance ledger service
+│   ├── listings/       # Browse, create, dynamic 1-24m term calculator, AI profile
+│   ├── mono/           # Mono Connect API integration and webhook income sync
+│   ├── notifications/  # In-app notification state management
+│   ├── payouts/        # Atomic ledger-backed bank transfers and requery API
+│   ├── platform/       # Platform-wide stats for landing page
+│   ├── scheduler/      # Cron job for overdue deal detection
+│   ├── squad/          # Squad payment service wrapper (sandbox)
+│   ├── sweep/          # Revenue sweep engine + Squad webhook idempotency handler
+│   └── verification/   # CAC registration verification
+├── config/             # Environment validation and Drizzle setup
+└── db/                 # Drizzle ORM schema and Neon connection
 ```
