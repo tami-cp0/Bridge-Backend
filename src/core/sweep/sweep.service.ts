@@ -126,7 +126,7 @@ export class SweepService {
     await db.insert(notifications).values({
       userId: user.id,
       title: `₦${(amount / 100).toLocaleString('en-NG')} deposit was successful`,
-      body: `Your wallet has been credited with ₦${(amount / 100).toLocaleString('en-NG')}.`,
+      body: `Your account was just credited ₦${(amount / 100).toLocaleString('en-NG')}, 1% service fee applies.`,
     });
 
     // For businesses with an active listing, the deposit also triggers a sweep.

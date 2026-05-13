@@ -1,4 +1,4 @@
-﻿import { Inject, Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { AppConfig } from '../../config/config';
 import type { AppConfigType } from '../../config/config.types';
@@ -8,9 +8,11 @@ import {
   listings,
   platformStats,
   investments,
+  users,
 } from '../../db/schema';
 import { eq, and, or, lte, sum, count } from 'drizzle-orm';
 import { BridgeRatingService } from '../bridge-rating/bridge-rating.service';
+import { SquadService } from '../squad/squad.service';
 
 @Injectable()
 export class SchedulerService {
@@ -18,6 +20,7 @@ export class SchedulerService {
 
   constructor(
     private bridgeRatingService: BridgeRatingService,
+    private squadService: SquadService,
     @Inject(AppConfig.KEY) private appCfg: AppConfigType,
   ) {}
 
@@ -102,5 +105,42 @@ export class SchedulerService {
       .where(eq(platformStats.id, 1)); // always row id=1
 
     this.logger.log('Platform stats updated');
+  }
+
+  // Runs every 30 minutes — simulates revenue for businesses with active listings
+  @Cron(CronExpression.EVERY_30_MINUTES)
+  async simulatePeriodicRevenue() {
+    this.logger.log('Running 30-minute revenue simulation');
+
+    const businessesWithActiveListings = await db
+      .select({ 
+        userId: businessProfiles.userId,
+        monoAverageMonthlyInflow: businessProfiles.monoAverageMonthlyInflow,
+        averageMonthlyRevenue: businessProfiles.averageMonthlyRevenue,
+        squadVirtualAccountNumber: users.squadVirtualAccountNumber
+      })
+      .from(listings)
+      .innerJoin(businessProfiles, eq(listings.businessId, businessProfiles.id))
+      .innerJoin(users, eq(businessProfiles.userId, users.id))
+      .where(or(eq(listings.status, 'active'), eq(listings.status, 'funded')));
+
+    for (const b of businessesWithActiveListings) {
+      if (!b.squadVirtualAccountNumber) continue;
+
+      const baseline = b.monoAverageMonthlyInflow ?? b.averageMonthlyRevenue ?? 0;
+      if (baseline <= 0) continue;
+      
+      const depositAmount = Math.floor(baseline * 0.0005); // 0.05%
+
+      if (depositAmount > 0) {
+        try {
+          await this.squadService.simulatePayment(b.squadVirtualAccountNumber, depositAmount);
+        } catch (e) {
+          this.logger.error(`Failed to simulate 30m revenue for ${b.userId}: ${e}`);
+        }
+      }
+    }
+
+    this.logger.log(`Simulated revenue for ${businessesWithActiveListings.length} businesses`);
   }
 }
