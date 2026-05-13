@@ -1,20 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { IsNotEmpty, IsString, Length, Matches } from 'class-validator';
 
-export class AccountLookupDto {
-  @ApiProperty({ example: '000013', description: 'NIP bank code' })
-  @IsString()
-  @IsNotEmpty()
-  bankCode!: string;
-
-  @ApiProperty({ example: '0123456789', description: '10-digit NUBAN' })
-  @IsString()
-  @IsNotEmpty()
-  @Length(10, 10)
-  @Matches(/^\d{10}$/)
-  accountNumber!: string;
-}
-
 export class InitiatePayoutDto {
   @ApiProperty({
     example: '10000',
@@ -24,28 +10,6 @@ export class InitiatePayoutDto {
   @IsNotEmpty()
   @Matches(/^\d+$/)
   amount!: string;
-
-  @ApiProperty({ example: '000013', description: 'NIP bank code' })
-  @IsString()
-  @IsNotEmpty()
-  bankCode!: string;
-
-  @ApiProperty({ example: '0123456789', description: '10-digit NUBAN' })
-  @IsString()
-  @IsNotEmpty()
-  @Length(10, 10)
-  @Matches(/^\d{10}$/)
-  accountNumber!: string;
-
-  @ApiProperty({ example: 'JOHN DOE', description: 'Account name from lookup' })
-  @IsString()
-  @IsNotEmpty()
-  accountName!: string;
-
-  @ApiProperty({ example: 'Project payout', description: 'Transaction remark' })
-  @IsString()
-  @IsNotEmpty()
-  remark!: string;
 }
 
 export class RequeryPayoutDto {

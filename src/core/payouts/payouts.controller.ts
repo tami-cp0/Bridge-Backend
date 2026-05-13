@@ -11,12 +11,10 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { JwtPayload } from '../../common/decorators/current-user.decorator';
 import { PayoutsService } from './payouts.service';
 import {
-  AccountLookupDto,
   InitiatePayoutDto,
   RequeryPayoutDto,
 } from './dto/payout-requests.dto';
 import {
-  AccountLookupResponseDto,
   InitiatePayoutResponseDto,
   PayoutListResponseDto,
   RequeryPayoutResponseDto,
@@ -29,13 +27,7 @@ import {
 export class PayoutsController {
   constructor(private payoutsService: PayoutsService) {}
 
-  @Post('account-lookup')
-  @ApiOperation({ summary: 'Lookup bank account name before payout' })
-  @ApiResponse({ status: 200, type: AccountLookupResponseDto })
-  @ApiResponse({ status: 401, description: 'Unauthorized' })
-  lookup(@Body() dto: AccountLookupDto) {
-    return this.payoutsService.lookupAccount(dto);
-  }
+
 
   @Post('transfer')
   @ApiOperation({

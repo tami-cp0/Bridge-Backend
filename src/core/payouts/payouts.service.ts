@@ -14,8 +14,8 @@ import { LedgerService } from '../ledger/ledger.service';
 import { SquadConfig } from '../../config/config';
 import type { SquadConfigType } from '../../config/config.types';
 import type { JwtPayload } from '../../common/decorators/current-user.decorator';
+import { users } from '../../db/schema';
 import {
-  AccountLookupDto,
   InitiatePayoutDto,
   RequeryPayoutDto,
 } from './dto/payout-requests.dto';
@@ -35,17 +35,7 @@ export class PayoutsService {
     @Inject(SquadConfig.KEY) private squadCfg: SquadConfigType,
   ) {}
 
-  async lookupAccount(dto: AccountLookupDto) {
-    const result = await this.squadService.lookupAccount(
-      dto.bankCode,
-      dto.accountNumber,
-    );
-    return {
-      bankCode: dto.bankCode,
-      accountNumber: dto.accountNumber,
-      accountName: result.accountName,
-    };
-  }
+
 
   async initiatePayout(user: JwtPayload, dto: InitiatePayoutDto) {
     const amount = Number(dto.amount);
@@ -53,13 +43,28 @@ export class PayoutsService {
       throw new BadRequestException('amount must be a positive number in kobo');
     }
 
-    // Balance now comes from the internal ledger — the merchant wallet is
-    // shared across all users, so per-user balance is allocation-based.
     const balance = await this.ledgerService.getAvailableBalance(user.userId);
     if (balance < amount) {
       throw new BadRequestException(
         `Insufficient balance. Available: ₦${formatNaira(balance)}`,
       );
+    }
+
+    const [dbUser] = await db.select({ beneficiaryAccount: users.beneficiaryAccount }).from(users).where(eq(users.id, user.userId));
+    if (!dbUser || !dbUser.beneficiaryAccount) {
+      throw new BadRequestException('Beneficiary account not set for this user');
+    }
+
+    const bankCode = '058'; // GTBank is the static default for Bridge
+    const accountNumber = dbUser.beneficiaryAccount;
+    const remark = 'Bridge Withdrawal';
+
+    let accountName = 'Unknown';
+    try {
+      const lookupResult = await this.squadService.lookupAccount(bankCode, accountNumber);
+      accountName = lookupResult.accountName;
+    } catch (e) {
+      throw new BadRequestException('Failed to verify beneficiary account details with the bank');
     }
 
     const merchantId = this.squadCfg.merchantId;
@@ -98,11 +103,11 @@ export class PayoutsService {
           userId: user.userId,
           userType: user.userType,
           amount,
-          bankCode: dto.bankCode,
-          accountNumber: dto.accountNumber,
-          accountName: dto.accountName,
+          bankCode,
+          accountNumber,
+          accountName,
           transactionReference: reference,
-          remark: dto.remark,
+          remark,
           status: 'pending',
           squadStatus: 'pending',
           updatedAt: new Date(),
@@ -112,11 +117,11 @@ export class PayoutsService {
     try {
       response = await this.squadService.initiateTransfer(
         amount,
-        dto.bankCode,
-        dto.accountNumber,
-        dto.accountName,
+        bankCode,
+        accountNumber,
+        accountName,
         reference,
-        dto.remark,
+        remark,
       );
     } catch (err) {
       // Squad unreachable or threw — reverse the ledger debit.
@@ -161,7 +166,7 @@ export class PayoutsService {
     await db.insert(notifications).values({
       userId: user.userId,
       title: `₦${formatNaira(amount)} payout initiated`,
-      body: `Payout of ₦${formatNaira(amount)} to ${dto.accountName} has been initiated.`,
+      body: `Payout of ₦${formatNaira(amount)} to ${accountName} has been initiated.`,
     });
 
     return {
