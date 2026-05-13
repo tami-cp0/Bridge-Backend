@@ -230,6 +230,20 @@ export class SweepService {
     sweepEventId: string,
     sweepAmount: number,
   ) {
+    // TODO: implement platform service fee
+    // // 1. Calculate the Platform Service Fee (1%)
+    // const platformFee = Math.round(sweepAmount * 0.01);
+    // const amountToDistribute = sweepAmount - platformFee;
+
+    // // 2. Record the 1% as Platform Revenue in your Ledger
+    // await this.ledgerService.credit({
+    //   userId: PLATFORM_SYSTEM_ID, // You'll need a system user ID for this
+    //   amount: platformFee,
+    //   purpose: 'service_fee',
+    //   referenceId: sweepEventId,
+    //   referenceType: 'sweep_event',
+    // });
+
     const activeInvestments = await db
       .select()
       .from(investments)

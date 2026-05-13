@@ -197,13 +197,16 @@ export class ListingsService {
       (avgMonthlyInflow * revenueSharePercent) / 100,
     );
 
+    // Apply the 4% pool deduction
+    const totalDisbursed = capitalRequested * 0.96;
     // Capital disbursed in three tranches: 40% on full funding, 30% after 2nd sweep, 30% after 4th sweep
-    const tranche1 = Math.round(capitalRequested * 0.4);
-    const tranche2 = Math.round(capitalRequested * 0.3);
-    const tranche3 = capitalRequested - tranche1 - tranche2; // remainder avoids rounding drift
+    const tranche1 = Math.round(totalDisbursed * 0.4);
+    const tranche2 = Math.round(totalDisbursed * 0.3);
+    const tranche3 = totalDisbursed - tranche1 - tranche2; // remainder avoids rounding drift
 
     return {
       capitalRequested,
+      totalDisbursed,
       totalReturnPercent,
       totalReturnAmount,
       revenueSharePercent,
