@@ -240,6 +240,7 @@ export class SweepService {
       activeListing.id,
       sweepEvent.id,
       sweepAmount,
+      bp.businessName ?? 'a business',
     );
 
     if (newTotalSwept >= totalReturnAmount) {
@@ -258,6 +259,7 @@ export class SweepService {
     listingId: string,
     sweepEventId: string,
     sweepAmount: number,
+    businessName: string,
   ) {
     // The full sweepAmount is distributed to investors according to their share.
     // The platform fee was already deducted from the business in processBusinessSweep.
@@ -275,7 +277,9 @@ export class SweepService {
 
     for (const investment of activeInvestments) {
       const sharePercent = Number(investment.sharePercent ?? 0);
-      const distributionAmount = Math.round((amountToDistribute * sharePercent) / 100);
+      const distributionAmount = Math.round(
+        (amountToDistribute * sharePercent) / 100,
+      );
       if (distributionAmount <= 0) continue;
 
       const distRef = `dist-${uuidv4()}`;
@@ -297,10 +301,10 @@ export class SweepService {
         squadTransferReference: distRef,
       });
 
-      // Check if the investment is complete. 
+      // Check if the investment is complete.
       const newReceived =
         (investment.totalReturnReceived ?? 0) + distributionAmount;
-      
+
       const isInvestmentComplete =
         newReceived >= (investment.totalReturnDue ?? 0);
 
@@ -316,7 +320,7 @@ export class SweepService {
       await db.insert(notifications).values({
         userId: investment.investorId,
         title: `₦${(distributionAmount / 100).toLocaleString('en-NG')} return was successful`,
-        body: `Your wallet was credited with ₦${(distributionAmount / 100).toLocaleString('en-NG')} from a listing sweep.`,
+        body: `Your wallet was credited with ₦${(distributionAmount / 100).toLocaleString('en-NG')} from ${businessName}.`,
       });
     }
   }
@@ -565,7 +569,12 @@ export class SweepService {
       .set({ totalSwept: listing.totalReturnAmount, updatedAt: new Date() })
       .where(eq(listings.id, listingId));
 
-    await this.distributeToInvestors(listingId, sweepEvent.id, remaining);
+    await this.distributeToInvestors(
+      listingId,
+      sweepEvent.id,
+      remaining,
+      bp.businessName ?? 'a business',
+    );
     await this.closeDeal(listingId, bp.id, bp.userId);
 
     this.triggerRatingRecalculation(bp.id).catch((e) =>
