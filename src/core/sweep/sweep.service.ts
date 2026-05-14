@@ -34,7 +34,6 @@ export class SweepService {
   ) {}
 
   async handleSquadWebhook(payload: Record<string, unknown>) {
-    console.log('handle reached', payload);
     const eventType = (payload.Event ?? payload.event) as string | undefined;
     const channel = payload.channel as string | undefined;
     const nestedData = (payload.data ?? {}) as Record<string, unknown>;
@@ -44,18 +43,19 @@ export class SweepService {
       `Squad webhook received — Event: ${eventType}, channel: ${channel ?? nestedChannel ?? 'none'}`,
     );
 
-    const isVaPayment =
+    const hasVaIndicator =
       channel === 'virtual-account' ||
       nestedChannel === 'virtual-account' ||
       !!payload.virtual_account_number ||
-      !!nestedData.virtual_account_number ||
-      eventType === 'charge_successful';
+      !!nestedData.virtual_account_number;
 
-    const isCheckoutPayment = eventType === 'charge.success';
+    const isSuccessEvent =
+      eventType === 'charge_successful' || eventType === 'charge.success';
 
-    if (isVaPayment) {
+    if (isSuccessEvent && hasVaIndicator) {
       await this.handleVaPaymentSuccessful(payload);
-    } else if (isCheckoutPayment) {
+    } else if (isSuccessEvent) {
+      // If it's a success event but doesn't have VA indicators, treat as checkout (inline/payment link)
       await this.handleCheckoutPaymentSuccessful(payload);
     } else {
       this.logger.warn(
@@ -108,6 +108,12 @@ export class SweepService {
       if (parts.length >= 3) {
         userId = parts[2];
       }
+    }
+
+    // Fallback to meta if ref parsing failed
+    if (!userId && body.meta && typeof body.meta === 'object') {
+      const meta = body.meta as Record<string, unknown>;
+      userId = meta.userId as string | undefined;
     }
 
     let user;
