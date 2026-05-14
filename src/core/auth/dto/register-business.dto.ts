@@ -85,13 +85,4 @@ export class RegisterBusinessDto {
   @Length(10, 10)
   @Matches(/^\d{10}$/)
   beneficiaryAccount!: string;
-
-  @ApiProperty({
-    example: '058',
-    description: '3-digit CBN bank code (e.g. 058 for GTB, 011 for First Bank)',
-  })
-  @IsString()
-  @IsNotEmpty()
-  @Length(3, 3)
-  beneficiaryBankCode!: string;
 }
