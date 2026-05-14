@@ -398,7 +398,7 @@ export class SweepService {
     });
   }
 
-  private async checkTrancheReleases(
+  async checkTrancheReleases(
     listingId: string,
     bp: typeof businessProfiles.$inferSelect,
   ) {
@@ -409,14 +409,25 @@ export class SweepService {
 
     const total = eventCount[0]?.count ?? 0;
 
-    // Tranche 2 releases after 2nd sweep, tranche 3 after 4th sweep
-    const trancheConditions: Array<{ number: number; minEvents: number }> = [
-      { number: 2, minEvents: 2 },
-      { number: 3, minEvents: 4 },
+    // Get listing to check status for Tranche 1
+    const [listing] = await db
+      .select({ status: listings.status })
+      .from(listings)
+      .where(eq(listings.id, listingId));
+
+    if (!listing) return;
+
+    // Tranche 1: immediately at full funding
+    // Tranche 2: after 10 sweeps
+    // Tranche 3: after 25 sweeps
+    const trancheConditions = [
+      { number: 1, condition: listing.status === 'funded' || listing.status === 'completed' },
+      { number: 2, condition: total >= 10 || listing.status === 'completed' },
+      { number: 3, condition: total >= 25 || listing.status === 'completed' },
     ];
 
     for (const tc of trancheConditions) {
-      if (total < tc.minEvents) continue;
+      if (!tc.condition) continue;
 
       const [tranche] = await db
         .select()
@@ -438,7 +449,7 @@ export class SweepService {
   // Capital tranches leave the merchant wallet via a real Squad payout. The
   // business's ledger is not touched here — escrowed investor capital was
   // never credited to them.
-  private async releaseTrancheToBusiness(
+  async releaseTrancheToBusiness(
     tranche: typeof tranches.$inferSelect,
     businessUserId: string,
   ) {

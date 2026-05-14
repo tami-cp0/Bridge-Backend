@@ -19,6 +19,7 @@ import {
 import { eq, and } from 'drizzle-orm';
 import { SquadService } from '../squad/squad.service';
 import { LedgerService } from '../ledger/ledger.service';
+import { SweepService } from '../sweep/sweep.service';
 import { CreateInvestmentDto } from './dto/create-investment.dto';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -37,6 +38,7 @@ export class InvestmentsService {
   constructor(
     private squadService: SquadService,
     private ledgerService: LedgerService,
+    private sweepService: SweepService,
   ) {}
 
   async createInvestment(investorUserId: string, dto: CreateInvestmentDto) {
@@ -304,92 +306,15 @@ export class InvestmentsService {
         .where(eq(investments.listingId, listingId));
     });
 
-    const [tranche1] = await db
-      .select()
-      .from(tranches)
-      .where(
-        and(eq(tranches.listingId, listingId), eq(tranches.trancheNumber, 1)),
-      );
-
-    if (!tranche1 || tranche1.status !== 'locked') return;
-
+    // Releasing tranche 1 immediately — checkTrancheReleases now handles this
+    // and is retriable (called on every sweep too).
     const [bp] = await db
-      .select({ userId: businessProfiles.userId })
+      .select()
       .from(businessProfiles)
       .where(eq(businessProfiles.id, listing.businessId));
 
-    if (!bp) return;
-
-    const [busUser] = await db
-      .select()
-      .from(users)
-      .where(eq(users.id, bp.userId));
-
-    if (!busUser?.beneficiaryAccount) {
-      this.logger.error(
-        `Cannot release tranche 1 for listing ${listingId}: business has no beneficiary account`,
-      );
-      return;
+    if (bp) {
+      await this.sweepService.checkTrancheReleases(listingId, bp);
     }
-
-    const trancheRef = `tranche1-${tranche1.id}`;
-    let status = 'failed';
-    try {
-      const result = await this.squadService.initiateTransfer(
-        tranche1.amount,
-        SETTLEMENT_BANK_CODE,
-        busUser.beneficiaryAccount,
-        busUser.fullName,
-        trancheRef,
-        'Tranche 1 release',
-      );
-      status = result.status;
-    } catch (err) {
-      this.logger.error(
-        `Tranche 1 payout failed for listing ${listingId}: ${String(err)}`,
-      );
-      return;
-    }
-
-    if (status === 'failed' || status === 'reversed') {
-      this.logger.error(
-        `Tranche 1 payout was not successful (${status}) for listing ${listingId}`,
-      );
-      return;
-    }
-
-    await db
-      .update(tranches)
-      .set({
-        status: 'released',
-        releasedAt: new Date(),
-        squadTransferReference: trancheRef,
-      })
-      .where(eq(tranches.id, tranche1.id));
-
-    // Ledger accounting for tranche release
-    await this.ledgerService.credit({
-      userId: bp.userId,
-      amount: tranche1.amount,
-      purpose: 'tranche_release',
-      referenceId: tranche1.id,
-      referenceType: 'tranche',
-      squadTransactionReference: `release-${trancheRef}`,
-    });
-
-    await this.ledgerService.debit({
-      userId: bp.userId,
-      amount: tranche1.amount,
-      purpose: 'tranche_payout',
-      referenceId: tranche1.id,
-      referenceType: 'tranche',
-      squadTransactionReference: trancheRef,
-    });
-
-    await db.insert(notifications).values({
-      userId: bp.userId,
-      title: `Listing funded! ₦${(tranche1.amount / 100).toLocaleString('en-NG')} Tranche 1 release was successful`,
-      body: `Your listing has been fully funded. Tranche 1 (₦${(tranche1.amount / 100).toLocaleString('en-NG')}) has been released to your bank account.`,
-    });
   }
 }

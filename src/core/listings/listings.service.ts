@@ -308,14 +308,14 @@ export class ListingsService {
         listingId: listing.id,
         trancheNumber: 2,
         amount: terms.tranche2,
-        releaseCondition: 'Second sweep event confirmed on this listing',
+        releaseCondition: 'Release on the 10th sweep event confirmed',
         status: 'locked',
       },
       {
         listingId: listing.id,
         trancheNumber: 3,
         amount: terms.tranche3,
-        releaseCondition: 'Fourth sweep event confirmed on this listing',
+        releaseCondition: 'Released on the 25th sweep event confirmed',
         status: 'locked',
       },
     ]);
