@@ -135,7 +135,7 @@ export class SchedulerService {
       const baseline = b.monoAverageMonthlyInflow ?? b.averageMonthlyRevenue ?? 0;
       if (baseline <= 0) continue;
       
-      const depositAmount = Math.floor(baseline * percentage);
+      const depositAmount = Math.floor(baseline * (percentage / 100));
 
       if (depositAmount > 0) {
         try {

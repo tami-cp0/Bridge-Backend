@@ -126,7 +126,7 @@ export class SweepService {
     await db.insert(notifications).values({
       userId: user.id,
       title: `₦${(amount / 100).toLocaleString('en-NG')} deposit was successful`,
-      body: `Your account was just credited ₦${(amount / 100).toLocaleString('en-NG')}, 1% service fee applies.`,
+      body: `Your account was just credited with ₦${(amount / 100).toLocaleString('en-NG')}.`,
     });
 
     // For businesses with an active listing, the deposit also triggers a sweep.
@@ -296,7 +296,7 @@ export class SweepService {
       await db.insert(notifications).values({
         userId: investment.investorId,
         title: `₦${(distributionAmount / 100).toLocaleString('en-NG')} return was successful`,
-        body: `Your wallet was credited with ₦${(distributionAmount / 100).toLocaleString('en-NG')} from a listing sweep.`,
+        body: `Your wallet was credited with ₦${(distributionAmount / 100).toLocaleString('en-NG')} from a listing sweep. A 1% platform service fee was applied.`,
       });
     }
   }
