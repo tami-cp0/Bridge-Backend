@@ -13,6 +13,7 @@ import {
   sweepDistributions,
   sweepEvents,
   listings,
+  businessProfiles,
 } from '../../db/schema';
 import { eq, desc, inArray } from 'drizzle-orm';
 import { UpdatePreferencesDto } from './dto/update-preferences.dto';
@@ -89,9 +90,11 @@ export class InvestorService {
         createdAt: investments.createdAt,
         updatedAt: investments.updatedAt,
         targetRepaymentMonths: listings.targetRepaymentMonths,
+        businessName: businessProfiles.businessName,
       })
       .from(investments)
       .innerJoin(listings, eq(listings.id, investments.listingId))
+      .innerJoin(businessProfiles, eq(businessProfiles.id, listings.businessId))
       .where(eq(investments.investorId, userId));
 
     if (!status) return results;

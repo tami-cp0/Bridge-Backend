@@ -181,7 +181,11 @@ export class InvestmentsService {
       body: `Your investment of ₦${(dto.amountCommitted / 100).toLocaleString('en-NG')} has been committed to the listing.`,
     });
 
-    return investment;
+    return {
+      ...investment,
+      businessName: bp?.businessName,
+      targetRepaymentMonths: listing.targetRepaymentMonths,
+    };
   }
 
   async cancelInvestment(investorUserId: string, investmentId: string) {

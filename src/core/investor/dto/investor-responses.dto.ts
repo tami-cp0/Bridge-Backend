@@ -142,6 +142,9 @@ export class InvestmentResponseDto {
   @ApiProperty({ example: 12, description: 'Target months to full repayment' })
   targetRepaymentMonths: number;
 
+  @ApiProperty({ example: 'TechFlow Solutions' })
+  businessName: string;
+
   @ApiProperty()
   createdAt: Date;
 
