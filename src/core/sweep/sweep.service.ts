@@ -153,7 +153,7 @@ export class SweepService {
       .where(
         and(
           eq(listings.businessId, bp.id),
-          or(eq(listings.status, 'active'), eq(listings.status, 'funded')),
+          eq(listings.status, 'funded'),
         ),
       );
 

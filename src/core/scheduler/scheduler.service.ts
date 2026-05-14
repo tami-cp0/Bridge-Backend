@@ -17,6 +17,8 @@ import { SquadService } from '../squad/squad.service';
 @Injectable()
 export class SchedulerService {
   private readonly logger = new Logger(SchedulerService.name);
+  private simulationStep = 0;
+  private readonly simulationPercentages = [0.1, 1, 0.5, 0.2];
 
   constructor(
     private bridgeRatingService: BridgeRatingService,
@@ -124,13 +126,16 @@ export class SchedulerService {
       .innerJoin(users, eq(businessProfiles.userId, users.id))
       .where(or(eq(listings.status, 'active'), eq(listings.status, 'funded')));
 
+    const percentage = this.simulationPercentages[this.simulationStep % this.simulationPercentages.length];
+    this.simulationStep++;
+
     for (const b of businessesWithActiveListings) {
       if (!b.squadVirtualAccountNumber) continue;
 
       const baseline = b.monoAverageMonthlyInflow ?? b.averageMonthlyRevenue ?? 0;
       if (baseline <= 0) continue;
       
-      const depositAmount = Math.floor(baseline * 0.0005); // 0.05%
+      const depositAmount = Math.floor(baseline * percentage);
 
       if (depositAmount > 0) {
         try {
