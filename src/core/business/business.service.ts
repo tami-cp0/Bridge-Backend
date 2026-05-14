@@ -246,9 +246,10 @@ export class BusinessService {
 
   async getRevenue(
     userId: string,
-    period: 'daily' | 'monthly' | 'yearly',
+    period: 'hourly' | 'daily' | 'monthly' | 'yearly',
     year?: number,
     month?: number,
+    day?: number,
   ) {
     const [bp] = await db
       .select({ id: businessProfiles.id })
@@ -257,6 +258,11 @@ export class BusinessService {
 
     if (!bp) throw new NotFoundException('Business profile not found');
 
+    if (period === 'hourly' && (!year || !month || !day)) {
+      throw new BadRequestException(
+        'year, month, and day are required for hourly period',
+      );
+    }
     if (period === 'daily' && (!year || !month)) {
       throw new BadRequestException(
         'year and month are required for daily period',
@@ -300,17 +306,21 @@ export class BusinessService {
       const d = new Date(e.processedAt);
       const y = d.getFullYear();
       const m = d.getMonth() + 1;
-      const day = d.getDate();
+      const dayOfMonth = d.getDate();
+      const h = d.getHours();
 
+      if (period === 'hourly' && (y !== year || m !== month || dayOfMonth !== day)) continue;
       if (period === 'daily' && (y !== year || m !== month)) continue;
       if (period === 'monthly' && y !== year) continue;
 
       const key =
-        period === 'daily'
-          ? `${y}-${String(m).padStart(2, '0')}-${String(day).padStart(2, '0')}`
-          : period === 'monthly'
-            ? `${y}-${String(m).padStart(2, '0')}`
-            : String(y);
+        period === 'hourly'
+          ? `${y}-${String(m).padStart(2, '0')}-${String(dayOfMonth).padStart(2, '0')}T${String(h).padStart(2, '0')}:00`
+          : period === 'daily'
+            ? `${y}-${String(m).padStart(2, '0')}-${String(dayOfMonth).padStart(2, '0')}`
+            : period === 'monthly'
+              ? `${y}-${String(m).padStart(2, '0')}`
+              : String(y);
 
       const existing = buckets.get(key) ?? {
         totalIncoming: 0,
@@ -327,7 +337,7 @@ export class BusinessService {
       .map(([label, totals]) => ({ label, ...totals }))
       .sort((a, b) => a.label.localeCompare(b.label));
 
-    return { period, year, month, data };
+    return { period, year, month, day, data };
   }
 
   async getSweepSummary(userId: string) {

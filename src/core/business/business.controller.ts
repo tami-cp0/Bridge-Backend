@@ -231,22 +231,29 @@ export class BusinessController {
   @ApiQuery({
     name: 'period',
     required: true,
-    enum: ['daily', 'monthly', 'yearly'],
+    enum: ['hourly', 'daily', 'monthly', 'yearly'],
     description: 'Aggregation period',
   })
   @ApiQuery({
     name: 'year',
     required: false,
     type: Number,
-    description: 'Required for daily and monthly periods',
+    description: 'Required for hourly, daily and monthly periods',
     example: 2025,
   })
   @ApiQuery({
     name: 'month',
     required: false,
     type: Number,
-    description: 'Required for daily period (1â€“12)',
+    description: 'Required for hourly and daily periods (1-12)',
     example: 5,
+  })
+  @ApiQuery({
+    name: 'day',
+    required: false,
+    type: Number,
+    description: 'Required for hourly period (1-31)',
+    example: 10,
   })
   @ApiOperation({
     summary:
@@ -257,9 +264,10 @@ export class BusinessController {
     schema: {
       type: 'object',
       properties: {
-        period: { type: 'string', enum: ['daily', 'monthly', 'yearly'] },
+        period: { type: 'string', enum: ['hourly', 'daily', 'monthly', 'yearly'] },
         year: { type: 'number', example: 2025 },
         month: { type: 'number', example: 5 },
+        day: { type: 'number', example: 10 },
         data: {
           type: 'array',
           items: {
@@ -294,15 +302,17 @@ export class BusinessController {
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   getRevenue(
     @Param('userId') userId: string,
-    @Query('period') period: 'daily' | 'monthly' | 'yearly',
+    @Query('period') period: 'hourly' | 'daily' | 'monthly' | 'yearly',
     @Query('year') year?: string,
     @Query('month') month?: string,
+    @Query('day') day?: string,
   ) {
     return this.businessService.getRevenue(
       userId,
       period,
       year ? Number(year) : undefined,
       month ? Number(month) : undefined,
+      day ? Number(day) : undefined,
     );
   }
 

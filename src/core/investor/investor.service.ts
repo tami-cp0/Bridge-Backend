@@ -190,10 +190,16 @@ export class InvestorService {
 
   async getReturns(
     userId: string,
-    period: 'daily' | 'monthly' | 'yearly',
+    period: 'hourly' | 'daily' | 'monthly' | 'yearly',
     year?: number,
     month?: number,
+    day?: number,
   ) {
+    if (period === 'hourly' && (!year || !month || !day)) {
+      throw new BadRequestException(
+        'year, month, and day are required for hourly period',
+      );
+    }
     if (period === 'daily' && (!year || !month)) {
       throw new BadRequestException(
         'year and month are required for daily period',
@@ -209,7 +215,7 @@ export class InvestorService {
       .from(investments)
       .where(eq(investments.investorId, userId));
 
-    if (!allInvestments.length) return { period, year, month, data: [] };
+    if (!allInvestments.length) return { period, year, month, day, data: [] };
 
     const investmentIds = allInvestments.map((i) => i.id);
 
@@ -233,17 +239,21 @@ export class InvestorService {
       const date = new Date(d.processedAt);
       const y = date.getFullYear();
       const m = date.getMonth() + 1;
-      const day = date.getDate();
+      const dayOfMonth = date.getDate();
+      const h = date.getHours();
 
+      if (period === 'hourly' && (y !== year || m !== month || dayOfMonth !== day)) continue;
       if (period === 'daily' && (y !== year || m !== month)) continue;
       if (period === 'monthly' && y !== year) continue;
 
       const key =
-        period === 'daily'
-          ? `${y}-${String(m).padStart(2, '0')}-${String(day).padStart(2, '0')}`
-          : period === 'monthly'
-            ? `${y}-${String(m).padStart(2, '0')}`
-            : String(y);
+        period === 'hourly'
+          ? `${y}-${String(m).padStart(2, '0')}-${String(dayOfMonth).padStart(2, '0')}T${String(h).padStart(2, '0')}:00`
+          : period === 'daily'
+            ? `${y}-${String(m).padStart(2, '0')}-${String(dayOfMonth).padStart(2, '0')}`
+            : period === 'monthly'
+              ? `${y}-${String(m).padStart(2, '0')}`
+              : String(y);
 
       buckets.set(key, (buckets.get(key) ?? 0) + (d.amountDistributed ?? 0));
     }
@@ -259,6 +269,6 @@ export class InvestorService {
       return { label, totalReturnsReceived, cumulativeReturns: cumulative };
     });
 
-    return { period, year: year ?? null, month: month ?? null, data };
+    return { period, year: year ?? null, month: month ?? null, day: day ?? null, data };
   }
 }

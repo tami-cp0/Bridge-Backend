@@ -190,20 +190,26 @@ export class InvestorController {
   @ApiQuery({
     name: 'period',
     required: true,
-    enum: ['daily', 'monthly', 'yearly'],
+    enum: ['hourly', 'daily', 'monthly', 'yearly'],
     description: 'Time bucket granularity',
   })
   @ApiQuery({
     name: 'year',
     required: false,
     type: Number,
-    description: 'Required for daily and monthly periods',
+    description: 'Required for hourly, daily and monthly periods',
   })
   @ApiQuery({
     name: 'month',
     required: false,
     type: Number,
-    description: 'Required for daily period (1–12)',
+    description: 'Required for hourly and daily periods (1–12)',
+  })
+  @ApiQuery({
+    name: 'day',
+    required: false,
+    type: Number,
+    description: 'Required for hourly period (1-31)',
   })
   @ApiOperation({
     summary:
@@ -216,11 +222,12 @@ export class InvestorController {
       properties: {
         period: {
           type: 'string',
-          enum: ['daily', 'monthly', 'yearly'],
+          enum: ['hourly', 'daily', 'monthly', 'yearly'],
           example: 'monthly',
         },
         year: { type: 'number', example: 2025, nullable: true },
         month: { type: 'number', example: null, nullable: true },
+        day: { type: 'number', example: null, nullable: true },
         data: {
           type: 'array',
           items: {
@@ -247,15 +254,17 @@ export class InvestorController {
   @ApiResponse({ status: 401, description: 'Unauthorized — missing or invalid token' })
   getReturns(
     @Param('userId') userId: string,
-    @Query('period') period: 'daily' | 'monthly' | 'yearly',
+    @Query('period') period: 'hourly' | 'daily' | 'monthly' | 'yearly',
     @Query('year') year?: string,
     @Query('month') month?: string,
+    @Query('day') day?: string,
   ) {
     return this.investorService.getReturns(
       userId,
       period,
       year ? Number(year) : undefined,
       month ? Number(month) : undefined,
+      day ? Number(day) : undefined,
     );
   }
 }
