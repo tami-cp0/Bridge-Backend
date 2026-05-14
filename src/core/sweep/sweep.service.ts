@@ -74,8 +74,11 @@ export class SweepService {
     const transactionRef = (data.transaction_reference ??
       data.TransactionRef ??
       data.reference) as string;
-    // VA webhooks send principal_amount (in kobo); other payment channels use amount
-    const amount = Number(data.principal_amount ?? data.amount ?? 0);
+    // VA webhooks send principal_amount as a Naira string; other channels use amount (usually kobo).
+    // We normalize everything to kobo (integer) for the internal ledger.
+    const amount = data.principal_amount 
+      ? Math.round(Number(data.principal_amount) * 100)
+      : Number(data.amount ?? 0);
 
     this.logger.log(
       `Processing payment — VA: ${virtualAccountNumber}, ref: ${transactionRef}, amount (kobo): ${amount}`,
@@ -159,6 +162,31 @@ export class SweepService {
 
     if (!activeListing) return;
 
+    // 1. Calculate and debit the 1% Platform Service Fee from the GROSS revenue.
+    const platformFee = Math.round(incomingAmount * 0.01);
+    const platformUserId = await this.ledgerService.getSystemUserId();
+
+    if (platformFee > 0) {
+      await this.ledgerService.debit({
+        userId: businessUserId,
+        amount: platformFee,
+        purpose: 'service_fee',
+        referenceId: activeListing.id,
+        referenceType: 'listing',
+        squadTransactionReference: `${transactionRef}_fee`,
+      });
+
+      await this.ledgerService.credit({
+        userId: platformUserId,
+        amount: platformFee,
+        purpose: 'service_fee',
+        referenceId: activeListing.id,
+        referenceType: 'listing',
+        squadTransactionReference: `${transactionRef}_fee`,
+      });
+    }
+
+    // 2. Calculate the sweep amount (debt repayment)
     const { sweepAmount: rawSweep, sweepPercent } =
       await this.dynamicSweepService.calculateSweep(
         activeListing.id,
@@ -195,7 +223,7 @@ export class SweepService {
         incomingPaymentAmount: incomingAmount,
         sweepPercent: String(sweepPercent),
         sweepAmount,
-        netAmountRetained: incomingAmount - sweepAmount,
+        netAmountRetained: incomingAmount - sweepAmount - platformFee,
         squadWebhookReference: transactionRef,
         processedAt: new Date(),
       })
@@ -230,20 +258,9 @@ export class SweepService {
     sweepEventId: string,
     sweepAmount: number,
   ) {
-    // 1. Calculate the Platform Service Fee (1%)
-    const platformFee = Math.round(sweepAmount * 0.01);
-    const amountToDistribute = sweepAmount - platformFee;
-
-    // 2. Record the 1% as Platform Revenue in your Ledger
-    const platformUserId = await this.ledgerService.getSystemUserId();
-    await this.ledgerService.credit({
-      userId: platformUserId,
-      amount: platformFee,
-      purpose: 'service_fee',
-      referenceId: sweepEventId,
-      referenceType: 'sweep_event',
-      squadTransactionReference: `fee-${uuidv4()}`,
-    });
+    // The full sweepAmount is distributed to investors according to their share.
+    // The platform fee was already deducted from the business in processBusinessSweep.
+    const amountToDistribute = sweepAmount;
 
     const activeInvestments = await db
       .select()
@@ -279,8 +296,10 @@ export class SweepService {
         squadTransferReference: distRef,
       });
 
+      // Check if the investment is complete. 
       const newReceived =
         (investment.totalReturnReceived ?? 0) + distributionAmount;
+      
       const isInvestmentComplete =
         newReceived >= (investment.totalReturnDue ?? 0);
 
@@ -296,7 +315,7 @@ export class SweepService {
       await db.insert(notifications).values({
         userId: investment.investorId,
         title: `₦${(distributionAmount / 100).toLocaleString('en-NG')} return was successful`,
-        body: `Your wallet was credited with ₦${(distributionAmount / 100).toLocaleString('en-NG')} from a listing sweep. A 1% platform service fee was applied.`,
+        body: `Your wallet was credited with ₦${(distributionAmount / 100).toLocaleString('en-NG')} from a listing sweep.`,
       });
     }
   }
