@@ -186,11 +186,12 @@ export class SweepService {
       });
     }
 
-    // 2. Calculate the sweep amount (debt repayment)
+    // 2. Calculate the sweep amount (debt repayment) FROM THE NET (Gross - 1% Fee)
+    const amountAfterFee = incomingAmount - platformFee;
     const { sweepAmount: rawSweep, sweepPercent } =
       await this.dynamicSweepService.calculateSweep(
         activeListing.id,
-        incomingAmount,
+        amountAfterFee,
       );
 
     const totalSwept = activeListing.totalSwept ?? 0;

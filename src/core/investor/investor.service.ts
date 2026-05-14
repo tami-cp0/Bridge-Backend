@@ -167,9 +167,12 @@ export class InvestorService {
       throw new NotFoundException('Virtual account not found');
     }
 
+    // Squad's simulate API expects Naira (e.g. "1000.00"), but our API receives kobo.
+    const amountNaira = (amount / 100).toFixed(2);
+
     await this.squadService.simulatePayment(
       user.squadVirtualAccountNumber,
-      amount,
+      Number(amountNaira),
     );
 
     return {
