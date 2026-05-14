@@ -50,12 +50,21 @@ export class PayoutsService {
       );
     }
 
-    const [dbUser] = await db.select({ beneficiaryAccount: users.beneficiaryAccount }).from(users).where(eq(users.id, user.userId));
-    if (!dbUser || !dbUser.beneficiaryAccount) {
-      throw new BadRequestException('Beneficiary account not set for this user');
+    const [dbUser] = await db
+      .select({
+        beneficiaryAccount: users.beneficiaryAccount,
+        beneficiaryBankCode: users.beneficiaryBankCode,
+      })
+      .from(users)
+      .where(eq(users.id, user.userId));
+
+    if (!dbUser || !dbUser.beneficiaryAccount || !dbUser.beneficiaryBankCode) {
+      throw new BadRequestException(
+        'Beneficiary account or bank code not set for this user',
+      );
     }
 
-    const bankCode = '058'; // GTBank is the static default for Bridge
+    const bankCode = dbUser.beneficiaryBankCode;
     const accountNumber = dbUser.beneficiaryAccount;
     const remark = 'Bridge Withdrawal';
 

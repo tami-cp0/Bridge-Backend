@@ -1,4 +1,4 @@
-﻿import {
+import {
   Inject,
   Injectable,
   ConflictException,
@@ -52,6 +52,7 @@ export class AuthService {
         bvnVerified: true,
         bvnHash,
         beneficiaryAccount: dto.beneficiaryAccount,
+        beneficiaryBankCode: dto.beneficiaryBankCode,
       })
       .returning({ id: users.id });
 
@@ -117,6 +118,7 @@ export class AuthService {
         bvnVerified: true,
         bvnHash,
         beneficiaryAccount: dto.beneficiaryAccount,
+        beneficiaryBankCode: dto.beneficiaryBankCode,
       })
       .returning({ id: users.id });
 

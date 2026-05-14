@@ -24,6 +24,7 @@ export const users = pgTable('users', {
     length: 100,
   }),
   beneficiaryAccount: varchar('beneficiary_account', { length: 10 }).notNull(),
+  beneficiaryBankCode: varchar('beneficiary_bank_code', { length: 10 }).notNull().default('058'),
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
 });
