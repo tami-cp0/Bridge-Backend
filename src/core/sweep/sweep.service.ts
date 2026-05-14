@@ -126,9 +126,14 @@ export class SweepService {
       `Ledger credited — userId: ${user.id}, amount: ${amount} kobo (₦${(amount / 100).toFixed(2)}), ref: ${transactionRef}`,
     );
 
+    const title =
+      user.userType === 'business'
+        ? `₦${(amount / 100).toLocaleString('en-NG')} deposit was successful, 1% service fees apply`
+        : `₦${(amount / 100).toLocaleString('en-NG')} deposit was successful`;
+
     await db.insert(notifications).values({
       userId: user.id,
-      title: `₦${(amount / 100).toLocaleString('en-NG')} deposit was successful`,
+      title,
       body: `Your account was just credited with ₦${(amount / 100).toLocaleString('en-NG')}.`,
     });
 
@@ -507,21 +512,23 @@ export class SweepService {
         'Full repayment is only available for funded listings',
       );
     }
-
     const remaining =
       (listing.totalReturnAmount ?? 0) - (listing.totalSwept ?? 0);
     if (remaining <= 0) {
       throw new BadRequestException('This listing has no remaining balance');
     }
 
+    const platformFee = Math.round(remaining * 0.01);
+    const totalRequired = remaining + platformFee;
+
     // The business must have enough already deposited (and unswept) to cover
-    // the remaining balance. We don't initiate a Squad collection here —
+    // the remaining balance + platform fee. We don't initiate a Squad collection here —
     // funds must already be in the merchant wallet, allocated to the business.
     const businessBalance =
       await this.ledgerService.getAvailableBalance(userId);
-    if (businessBalance < remaining) {
+    if (businessBalance < totalRequired) {
       throw new BadRequestException(
-        `Insufficient wallet balance to repay in full. Need ₦${(remaining / 100).toLocaleString('en-NG')}, available ₦${(businessBalance / 100).toLocaleString('en-NG')}. Top up your wallet first.`,
+        `Insufficient wallet balance to repay in full with fees. Need ₦${(totalRequired / 100).toLocaleString('en-NG')}, available ₦${(businessBalance / 100).toLocaleString('en-NG')}. Top up your wallet first.`,
       );
     }
 
@@ -538,9 +545,31 @@ export class SweepService {
       await this.releaseTrancheToBusiness(tranche, bp.userId);
     }
 
-    // Debit the business's ledger for the full remaining balance, then
-    // distribute it to investors as a single synthetic sweep event.
     const repayRef = `manual-repay-${uuidv4()}`;
+
+    // 1. Collect platform fee
+    if (platformFee > 0) {
+      const platformUserId = await this.ledgerService.getSystemUserId();
+      await this.ledgerService.debit({
+        userId,
+        amount: platformFee,
+        purpose: 'service_fee',
+        referenceId: listingId,
+        referenceType: 'listing',
+        squadTransactionReference: `${repayRef}_fee`,
+      });
+      await this.ledgerService.credit({
+        userId: platformUserId,
+        amount: platformFee,
+        purpose: 'service_fee',
+        referenceId: listingId,
+        referenceType: 'listing',
+        squadTransactionReference: `${repayRef}_fee`,
+      });
+    }
+
+    // 2. Debit the business's ledger for the full remaining balance, then
+    // distribute it to investors as a single synthetic sweep event.
     await this.ledgerService.debit({
       userId,
       amount: remaining,
@@ -577,13 +606,20 @@ export class SweepService {
     );
     await this.closeDeal(listingId, bp.id, bp.userId);
 
+    await db.insert(notifications).values({
+      userId,
+      title: `₦${(remaining / 100).toLocaleString('en-NG')} one time payment was successful, 1% service fees apply`,
+      body: `You have successfully repaid your listing in full. Platform fee of ₦${(platformFee / 100).toLocaleString('en-NG')} was also deducted.`,
+    });
+
     this.triggerRatingRecalculation(bp.id).catch((e) =>
       this.logger.error(`Rating recalc failed: ${e}`),
     );
 
     return {
       repaid: remaining,
-      message: `₦${(remaining / 100).toLocaleString('en-NG')} repaid. Your listing is now completed.`,
+      fee: platformFee,
+      message: `₦${(remaining / 100).toLocaleString('en-NG')} repaid (₦${(platformFee / 100).toLocaleString('en-NG')} service fee). Your listing is now completed.`,
     };
   }
 
