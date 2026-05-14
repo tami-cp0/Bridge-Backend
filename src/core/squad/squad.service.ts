@@ -287,6 +287,39 @@ export class SquadService {
     }
   }
 
+  async initiateTransaction(
+    amount: number,
+    email: string,
+    transactionRef: string,
+    callbackUrl: string,
+    metadata?: Record<string, any>,
+  ): Promise<{ checkout_url: string; transaction_ref: string }> {
+    try {
+      const response = await this.client.post<
+        SquadApiResponse<{
+          checkout_url: string;
+          transaction_ref: string;
+        }>
+      >('/transaction/initiate', {
+        amount,
+        email,
+        currency: 'NGN',
+        initiate_type: 'inline',
+        transaction_ref: transactionRef,
+        callback_url: callbackUrl,
+        metadata,
+      });
+
+      const data = unwrapSquadData(response.data);
+      return {
+        checkout_url: data.checkout_url,
+        transaction_ref: data.transaction_ref,
+      };
+    } catch (err: unknown) {
+      this.throwSquadError(err, 'Unable to initiate transaction');
+    }
+  }
+
   // Squad's HMAC-SHA512 signature; timingSafeEqual prevents timing attacks
   verifyWebhookSignature(rawBody: string, signatureHeader: string): boolean {
     const secret = this.squadCfg.secretKey!;
@@ -294,10 +327,8 @@ export class SquadService {
       .createHmac('sha512', secret)
       .update(rawBody)
       .digest('hex');
-    return crypto.timingSafeEqual(
-      Buffer.from(computed, 'hex'),
-      Buffer.from(signatureHeader, 'hex'),
-    );
+    
+    return computed.toLowerCase() === signatureHeader.toLowerCase();
   }
 
   // Squad reports payout state in response_description. Normalize to a small

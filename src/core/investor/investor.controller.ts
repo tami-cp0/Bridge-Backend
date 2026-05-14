@@ -18,7 +18,7 @@ import {
 } from '@nestjs/swagger';
 import { InvestorService } from './investor.service';
 import { UpdatePreferencesDto } from './dto/update-preferences.dto';
-import { SimulateDepositDto } from './dto/deposit.dto';
+import { SimulateDepositDto, InitiateCheckoutDto } from './dto/deposit.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { InvestorGuard } from '../../common/guards/investor.guard';
 import {
@@ -156,6 +156,32 @@ export class InvestorController {
     @Body() dto: SimulateDepositDto,
   ) {
     return this.investorService.simulateDeposit(userId, dto.amount);
+  }
+
+  @Post(':userId/checkout')
+  @UseGuards(InvestorGuard)
+  @ApiParam({ name: 'userId', description: 'Investor user UUID' })
+  @ApiOperation({
+    summary: 'Initiate a Squad checkout flow for wallet top-up',
+  })
+  @ApiResponse({
+    status: 201,
+    schema: {
+      type: 'object',
+      properties: {
+        checkout_url: { type: 'string', example: 'https://sandbox-pay.squadco.com/checkout/unique_hash' },
+        transaction_ref: { type: 'string', example: 'BRIDGE_TXN_user123_171568...' },
+      },
+    },
+  })
+  @ApiResponse({ status: 400, description: 'Validation error' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Forbidden' })
+  initiateCheckout(
+    @Param('userId') userId: string,
+    @Body() dto: InitiateCheckoutDto,
+  ) {
+    return this.investorService.initiateCheckout(userId, dto.amount);
   }
 
   @Patch(':userId/preferences')

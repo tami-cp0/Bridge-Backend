@@ -33,69 +33,50 @@ export class SweepService {
     private ledgerService: LedgerService,
   ) {}
 
-  // Entry point from the webhook controller. Squad fires this when any VA we
-  // own receives a payment (real or simulated). Funds land in the merchant
-  // wallet; we record an internal credit for whoever owns the VA.
   async handleSquadWebhook(payload: Record<string, unknown>) {
     console.log('handle reached', payload);
     const eventType = (payload.Event ?? payload.event) as string | undefined;
     const channel = payload.channel as string | undefined;
-    // Squad sandbox often wraps fields under a `data` key; check both levels
     const nestedData = (payload.data ?? {}) as Record<string, unknown>;
     const nestedChannel = nestedData.channel as string | undefined;
 
     this.logger.log(
-      `Squad webhook received — Event: ${eventType}, channel: ${channel ?? nestedChannel ?? 'none'}, ` +
-        `top-level VA: ${payload.virtual_account_number ?? 'none'}, ` +
-        `nested VA: ${nestedData.virtual_account_number ?? 'none'}`,
+      `Squad webhook received — Event: ${eventType}, channel: ${channel ?? nestedChannel ?? 'none'}`,
     );
 
-    const isPayment =
+    const isVaPayment =
       channel === 'virtual-account' ||
       nestedChannel === 'virtual-account' ||
       !!payload.virtual_account_number ||
       !!nestedData.virtual_account_number ||
       eventType === 'charge_successful';
 
-    if (!isPayment) {
-      this.logger.warn(
-        `Squad webhook skipped — no VA payment signal detected. ` +
-          `Full payload keys: ${Object.keys(payload).join(', ')}`,
-      );
-      return;
-    }
+    const isCheckoutPayment = eventType === 'charge.success';
 
-    await this.handlePaymentSuccessful(payload);
+    if (isVaPayment) {
+      await this.handleVaPaymentSuccessful(payload);
+    } else if (isCheckoutPayment) {
+      await this.handleCheckoutPaymentSuccessful(payload);
+    } else {
+      this.logger.warn(
+        `Squad webhook skipped — unknown event or channel. ` +
+          `Event: ${eventType}, keys: ${Object.keys(payload).join(', ')}`,
+      );
+    }
   }
 
-  private async handlePaymentSuccessful(payload: Record<string, unknown>) {
+  private async handleVaPaymentSuccessful(payload: Record<string, unknown>) {
     const data = (payload.data ?? payload) as Record<string, unknown>;
     const virtualAccountNumber = data.virtual_account_number as string;
     const transactionRef = (data.transaction_reference ??
       data.TransactionRef ??
       data.reference) as string;
-    // VA webhooks send principal_amount as a Naira string; other channels use amount (usually kobo).
-    // We normalize everything to kobo (integer) for the internal ledger.
-    const amount = data.principal_amount 
+    const amount = data.principal_amount
       ? Math.round(Number(data.principal_amount) * 100)
       : Number(data.amount ?? 0);
 
-    this.logger.log(
-      `Processing payment — VA: ${virtualAccountNumber}, ref: ${transactionRef}, amount (kobo): ${amount}`,
-    );
-
     if (!virtualAccountNumber || !transactionRef) {
-      this.logger.warn(
-        `Missing fields in webhook — virtual_account_number: ${virtualAccountNumber ?? 'none'}, ` +
-          `transaction_reference: ${transactionRef ?? 'none'}. ` +
-          `Nested data keys: ${Object.keys(data).join(', ')}`,
-      );
-      return;
-    }
-
-    // Idempotency — if this Squad ref already produced a ledger entry, skip.
-    if (await this.ledgerService.hasEntryForSquadReference(transactionRef)) {
-      this.logger.log(`Duplicate webhook ignored: ${transactionRef}`);
+      this.logger.warn('Missing fields in VA webhook');
       return;
     }
 
@@ -105,41 +86,80 @@ export class SweepService {
       .where(eq(users.squadVirtualAccountNumber, virtualAccountNumber));
 
     if (!user) {
-      this.logger.warn(
-        `Webhook for unknown VA ${virtualAccountNumber} — ignoring`,
-      );
+      this.logger.warn(`Unknown VA ${virtualAccountNumber}`);
       return;
     }
 
+    await this.processFinalCredit(user.id, user.userType, amount, transactionRef);
+  }
+
+  private async handleCheckoutPaymentSuccessful(payload: Record<string, unknown>) {
+    const transactionRef = payload.TransactionRef as string;
+    const body = (payload.Body ?? {}) as Record<string, unknown>;
+    const amount = Number(body.amount ?? 0);
+    const email = body.email as string;
+
+    this.logger.log(`Processing checkout payment — ref: ${transactionRef}, amount: ${amount}`);
+
+    // Try to extract userId from ref: BRIDGE_TXN_<userId>_<timestamp>
+    let userId: string | undefined;
+    if (transactionRef.startsWith('BRIDGE_TXN_')) {
+      const parts = transactionRef.split('_');
+      if (parts.length >= 3) {
+        userId = parts[2];
+      }
+    }
+
+    let user;
+    if (userId) {
+      [user] = await db.select().from(users).where(eq(users.id, userId));
+    }
+
+    if (!user && email) {
+      [user] = await db.select().from(users).where(eq(users.email, email));
+    }
+
+    if (!user) {
+      this.logger.warn(`Could not find user for checkout payment ${transactionRef}`);
+      return;
+    }
+
+    await this.processFinalCredit(user.id, user.userType, amount, transactionRef);
+  }
+
+  private async processFinalCredit(
+    userId: string,
+    userType: string,
+    amount: number,
+    transactionRef: string,
+  ) {
     if (amount <= 0) return;
 
-    // Always credit the recipient for the incoming money. This is what makes
-    // the merchant wallet's escrow allocable per user.
+    if (await this.ledgerService.hasEntryForSquadReference(transactionRef)) {
+      this.logger.log(`Duplicate webhook ignored: ${transactionRef}`);
+      return;
+    }
+
     await this.ledgerService.credit({
-      userId: user.id,
+      userId,
       amount,
       purpose: 'deposit',
       squadTransactionReference: transactionRef,
     });
 
-    this.logger.log(
-      `Ledger credited — userId: ${user.id}, amount: ${amount} kobo (₦${(amount / 100).toFixed(2)}), ref: ${transactionRef}`,
-    );
-
     const title =
-      user.userType === 'business'
+      userType === 'business'
         ? `₦${(amount / 100).toLocaleString('en-NG')} deposit was successful, 1% service fees apply`
         : `₦${(amount / 100).toLocaleString('en-NG')} deposit was successful`;
 
     await db.insert(notifications).values({
-      userId: user.id,
+      userId,
       title,
       body: `Your account was just credited with ₦${(amount / 100).toLocaleString('en-NG')}.`,
     });
 
-    // For businesses with an active listing, the deposit also triggers a sweep.
-    if (user.userType === 'business') {
-      await this.processBusinessSweep(user.id, amount, transactionRef);
+    if (userType === 'business') {
+      await this.processBusinessSweep(userId, amount, transactionRef);
     }
   }
 

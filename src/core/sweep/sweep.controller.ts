@@ -1,4 +1,4 @@
-﻿import {
+import {
   Controller,
   Post,
   Req,
@@ -72,8 +72,10 @@ export class SweepController {
   })
   async handleSquadWebhook(
     @Req() req: RawBodyRequest<Request>,
-    @Headers('x-squad-encrypted-body') signature: string,
+    @Headers('x-squad-encrypted-body') signature1: string,
+    @Headers('x-squad-signature') signature2: string,
   ) {
+    const signature = signature1 || signature2;
     const rawBody = req.rawBody?.toString() ?? JSON.stringify(req.body);
 
     console.log('Received Squad webhook', { signature, rawBody });

@@ -10,3 +10,14 @@ export class SimulateDepositDto {
   @IsPositive()
   amount!: number;
 }
+
+export class InitiateCheckoutDto {
+  @ApiProperty({
+    example: 5000,
+    description: 'Amount in kobo (e.g. 5000 = ₦50)',
+  })
+  @IsInt()
+  @IsPositive()
+  amount!: number;
+}
+

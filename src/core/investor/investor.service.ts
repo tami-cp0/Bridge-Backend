@@ -187,6 +187,29 @@ export class InvestorService {
     };
   }
 
+  async initiateCheckout(userId: string, amount: number) {
+    const [user] = await db
+      .select({ email: users.email })
+      .from(users)
+      .where(eq(users.id, userId));
+
+    if (!user) throw new NotFoundException('User not found');
+
+    const transactionRef = `BRIDGE_TXN_${userId}_${Date.now()}`;
+    // In a real app, this callback URL would be a frontend route.
+    const callbackUrl = 'https://bridge-finance.app/payment-callback';
+
+    const result = await this.squadService.initiateTransaction(
+      amount,
+      user.email,
+      transactionRef,
+      callbackUrl,
+      { userId, type: 'investor_deposit' },
+    );
+
+    return result;
+  }
+
   async getPaymentLink(userId: string) {
     const [user] = await db
       .select({ squadVirtualAccountNumber: users.squadVirtualAccountNumber })

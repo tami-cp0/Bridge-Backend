@@ -20,6 +20,7 @@ import { BusinessService } from './business.service';
 import { SweepService } from '../sweep/sweep.service';
 import { LedgerService } from '../ledger/ledger.service';
 import { ConnectBankDto } from './dto/connect-bank.dto';
+import { InitiateCheckoutDto } from '../investor/dto/deposit.dto';
 import { BusinessGuard } from '../../common/guards/business.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { JwtPayload } from '../../common/decorators/current-user.decorator';
@@ -119,6 +120,32 @@ export class BusinessController {
       throw new BadRequestException('You can only simulate revenue for your own business');
     }
     return this.businessService.simulateRevenue(userId);
+  }
+
+  @Post(':userId/checkout')
+  @UseGuards(BusinessGuard)
+  @ApiParam({ name: 'userId', description: 'Business user UUID' })
+  @ApiOperation({
+    summary: 'Initiate a Squad checkout flow for business revenue/wallet top-up',
+  })
+  @ApiResponse({
+    status: 201,
+    schema: {
+      type: 'object',
+      properties: {
+        checkout_url: { type: 'string', example: 'https://sandbox-pay.squadco.com/checkout/unique_hash' },
+        transaction_ref: { type: 'string', example: 'BRIDGE_TXN_user123_171568...' },
+      },
+    },
+  })
+  @ApiResponse({ status: 400, description: 'Validation error' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Forbidden' })
+  initiateCheckout(
+    @Param('userId') userId: string,
+    @Body() dto: InitiateCheckoutDto,
+  ) {
+    return this.businessService.initiateCheckout(userId, dto.amount);
   }
 
   @Get(':userId/stats')
