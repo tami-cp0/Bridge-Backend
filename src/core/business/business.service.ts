@@ -103,7 +103,9 @@ export class BusinessService {
       throw new BadRequestException('Business has no recorded revenue to simulate from');
     }
 
-    const depositAmount = Math.floor(baseline * 0.05);
+    const depositAmountKobo = Math.floor(baseline * 0.05);
+    // Squad's simulate API expects Naira (e.g. "1000.00"), but our baseline is kobo.
+    const depositAmountNaira = (depositAmountKobo / 100).toFixed(2);
 
     // Run async loop: 6 times, every 10 seconds (total 1 minute)
     (async () => {
@@ -111,7 +113,7 @@ export class BusinessService {
         try {
           await this.squadService.simulatePayment(
             user.squadVirtualAccountNumber!,
-            depositAmount
+            Number(depositAmountNaira)
           );
         } catch (e) {
           console.error('Failed to simulate revenue deposit', e);
@@ -126,7 +128,7 @@ export class BusinessService {
       message: 'Revenue simulation started',
       deposits: 6,
       intervalSeconds: 10,
-      amountPerDeposit: depositAmount,
+      amountPerDeposit: depositAmountKobo,
     };
   }
 
