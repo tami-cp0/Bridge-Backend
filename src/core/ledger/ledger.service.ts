@@ -16,7 +16,9 @@ export type LedgerPurpose =
   | 'default_pool' // investor debit, 4% protection contribution
   | 'service_fee' // platform revenue
   | 'payout' // user debit when withdrawing to their bank
-  | 'payout_reversed'; // user credit when payout fails/reverses
+  | 'payout_reversed' // user credit when payout fails/reverses
+  | 'investment_refund' // investor credit when cancelling an inactive deal
+  | 'default_pool_reversal'; // system debit when investor cancels
 
 export interface LedgerEntryInput {
   userId: string;

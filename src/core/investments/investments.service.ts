@@ -2,6 +2,7 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
+  ForbiddenException,
   Logger,
 } from '@nestjs/common';
 import { db } from '../../db';
@@ -100,7 +101,7 @@ export class InvestmentsService {
         sharePercent: String(sharePercent.toFixed(4)),
         totalReturnDue,
         totalReturnReceived: 0,
-        status: 'active',
+        status: 'inactive',
         squadTransferReference: ref,
       })
       .returning();
@@ -170,6 +171,75 @@ export class InvestmentsService {
     return investment;
   }
 
+  async cancelInvestment(investorUserId: string, investmentId: string) {
+    const [investment] = await db
+      .select()
+      .from(investments)
+      .where(eq(investments.id, investmentId));
+
+    if (!investment) throw new NotFoundException('Investment not found');
+    if (investment.investorId !== investorUserId) {
+      throw new ForbiddenException('You do not own this investment');
+    }
+
+    if (investment.status !== 'inactive') {
+      throw new BadRequestException(
+        'Only inactive investments (listing not yet funded) can be cancelled',
+      );
+    }
+
+    const [listing] = await db
+      .select()
+      .from(listings)
+      .where(eq(listings.id, investment.listingId));
+
+    if (!listing) throw new NotFoundException('Listing not found');
+
+    await db.transaction(async (tx) => {
+      // 1. Refund the investor's committed capital
+      await this.ledgerService.credit({
+        userId: investorUserId,
+        amount: investment.amountCommitted,
+        purpose: 'investment_refund',
+        referenceId: investmentId,
+        referenceType: 'investment',
+        squadTransactionReference: `ref-${uuidv4()}`,
+      });
+
+      // 2. Reverse the default pool contribution from the system user
+      const systemUserId = await this.ledgerService.getSystemUserId();
+      await this.ledgerService.debit({
+        userId: systemUserId,
+        amount: investment.defaultPoolContribution ?? 0,
+        purpose: 'default_pool_reversal',
+        referenceId: investmentId,
+        referenceType: 'investment',
+        squadTransactionReference: `rev-${uuidv4()}`,
+      });
+
+      // 3. Update the listing's committed total and investor count
+      const newCommitted = Math.max(
+        0,
+        (listing.totalCommitted ?? 0) - investment.amountCommitted,
+      );
+      const newInvestorCount = Math.max(0, (listing.investorCount ?? 0) - 1);
+
+      await tx
+        .update(listings)
+        .set({
+          totalCommitted: newCommitted,
+          investorCount: newInvestorCount,
+          updatedAt: new Date(),
+        })
+        .where(eq(listings.id, listing.id));
+
+      // 4. Delete the investment record
+      await tx.delete(investments).where(eq(investments.id, investmentId));
+    });
+
+    return { success: true, message: 'Investment cancelled and refunded' };
+  }
+
   async getSweepsForDeal(listingId: string, investorUserId: string) {
     const [investment] = await db
       .select({ id: investments.id })
@@ -204,10 +274,18 @@ export class InvestmentsService {
     listingId: string,
     listing: typeof listings.$inferSelect,
   ) {
-    await db
-      .update(listings)
-      .set({ status: 'funded', updatedAt: new Date() })
-      .where(eq(listings.id, listingId));
+    await db.transaction(async (tx) => {
+      await tx
+        .update(listings)
+        .set({ status: 'funded', updatedAt: new Date() })
+        .where(eq(listings.id, listingId));
+
+      // Mark all investments as active now that the listing is funded
+      await tx
+        .update(investments)
+        .set({ status: 'active', updatedAt: new Date() })
+        .where(eq(investments.listingId, listingId));
+    });
 
     const [tranche1] = await db
       .select()

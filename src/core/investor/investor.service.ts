@@ -12,6 +12,7 @@ import {
   users,
   sweepDistributions,
   sweepEvents,
+  listings,
 } from '../../db/schema';
 import { eq, desc, inArray } from 'drizzle-orm';
 import { UpdatePreferencesDto } from './dto/update-preferences.dto';
@@ -73,14 +74,28 @@ export class InvestorService {
   }
 
   async getDeals(userId: string, status?: string) {
-    const query = db
-      .select()
+    const results = await db
+      .select({
+        id: investments.id,
+        listingId: investments.listingId,
+        investorId: investments.investorId,
+        amountCommitted: investments.amountCommitted,
+        defaultPoolContribution: investments.defaultPoolContribution,
+        sharePercent: investments.sharePercent,
+        totalReturnDue: investments.totalReturnDue,
+        totalReturnReceived: investments.totalReturnReceived,
+        status: investments.status,
+        squadTransferReference: investments.squadTransferReference,
+        createdAt: investments.createdAt,
+        updatedAt: investments.updatedAt,
+        targetRepaymentMonths: listings.targetRepaymentMonths,
+      })
       .from(investments)
+      .innerJoin(listings, eq(listings.id, investments.listingId))
       .where(eq(investments.investorId, userId));
 
-    const all = await query;
-    if (!status) return all;
-    return all.filter((i) => i.status === status);
+    if (!status) return results;
+    return results.filter((i) => i.status === status);
   }
 
   async getWallet(userId: string) {

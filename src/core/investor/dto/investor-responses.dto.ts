@@ -1,4 +1,4 @@
-﻿import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { SectorEnum } from '../../../common/enums/sector.enum';
 
 export class InvestorProfileDto {
@@ -133,11 +133,14 @@ export class InvestmentResponseDto {
   })
   totalReturnReceived: number;
 
-  @ApiProperty({ enum: ['active', 'completed', 'defaulted'] })
+  @ApiProperty({ enum: ['inactive', 'active', 'completed', 'defaulted'] })
   status: string;
 
   @ApiPropertyOptional()
   squadTransferReference: string | null;
+
+  @ApiProperty({ example: 12, description: 'Target months to full repayment' })
+  targetRepaymentMonths: number;
 
   @ApiProperty()
   createdAt: Date;

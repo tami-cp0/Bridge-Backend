@@ -1,4 +1,4 @@
-﻿import { Controller, Post, Get, Body, Param, UseGuards } from '@nestjs/common';
+import { Controller, Post, Get, Delete, Body, Param, UseGuards } from '@nestjs/common';
 import {
   ApiTags,
   ApiOperation,
@@ -69,5 +69,30 @@ export class InvestmentsController {
     @CurrentUser() user: JwtPayload,
   ) {
     return this.investmentsService.getSweepsForDeal(listingId, user.userId);
+  }
+
+  @Delete('investments/:id')
+  @UseGuards(InvestorGuard)
+  @ApiBearerAuth('JWT')
+  @ApiOperation({ summary: 'Cancel an inactive investment and refund wallet' })
+  @ApiParam({ name: 'id', description: 'Investment UUID' })
+  @ApiResponse({
+    status: 200,
+    description: 'Investment cancelled and refunded to wallet',
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Investment is already active and cannot be cancelled',
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Forbidden — you do not own this investment',
+  })
+  @ApiResponse({ status: 404, description: 'Investment not found' })
+  cancelInvestment(
+    @CurrentUser() user: JwtPayload,
+    @Param('id') investmentId: string,
+  ) {
+    return this.investmentsService.cancelInvestment(user.userId, investmentId);
   }
 }

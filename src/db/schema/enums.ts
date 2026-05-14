@@ -10,7 +10,8 @@ export const listingStatusEnum = pgEnum('listing_status', [
 ]);
 
 export const investmentStatusEnum = pgEnum('investment_status', [
-  'active',
+  'inactive', // listing not yet fully funded
+  'active',   // repayment in progress
   'completed',
   'defaulted',
 ]);
