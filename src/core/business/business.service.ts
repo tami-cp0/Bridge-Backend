@@ -226,22 +226,19 @@ export class BusinessService {
 
     if (!bp) return [];
 
-    const [activeListing] = await db
+    const allListings = await db
       .select({ id: listings.id })
       .from(listings)
-      .where(
-        and(
-          eq(listings.businessId, bp.id),
-          or(eq(listings.status, 'active'), eq(listings.status, 'funded')),
-        ),
-      );
+      .where(eq(listings.businessId, bp.id));
 
-    if (!activeListing) return [];
+    if (!allListings.length) return [];
+
+    const listingIds = allListings.map((l) => l.id);
 
     return db
       .select()
       .from(sweepEvents)
-      .where(eq(sweepEvents.listingId, activeListing.id))
+      .where(inArray(sweepEvents.listingId, listingIds))
       .orderBy(desc(sweepEvents.processedAt))
       .limit(10);
   }
@@ -350,22 +347,36 @@ export class BusinessService {
 
     if (!bp) throw new NotFoundException('Business profile not found');
 
-    const [activeListing] = await db
+    const allListings = await db
       .select({
         totalSwept: listings.totalSwept,
         totalReturnAmount: listings.totalReturnAmount,
         revenueSharePercent: listings.revenueSharePercent,
+        status: listings.status,
       })
       .from(listings)
-      .where(
-        and(
-          eq(listings.businessId, bp.id),
-          or(eq(listings.status, 'active'), eq(listings.status, 'funded')),
-        ),
-      );
+      .where(eq(listings.businessId, bp.id));
 
-    if (!activeListing)
+    if (!allListings.length) {
       return { totalSwept: 0, totalRemaining: 0, currentSweepPercent: 0 };
+    }
+
+    const activeListing = allListings.find(
+      (l) => l.status === 'active' || l.status === 'funded',
+    );
+
+    const totalSweptLifetime = allListings.reduce(
+      (s, l) => s + (l.totalSwept ?? 0),
+      0,
+    );
+
+    if (!activeListing) {
+      return {
+        totalSwept: totalSweptLifetime,
+        totalRemaining: 0,
+        currentSweepPercent: 0,
+      };
+    }
 
     return {
       totalSwept: activeListing.totalSwept ?? 0,
