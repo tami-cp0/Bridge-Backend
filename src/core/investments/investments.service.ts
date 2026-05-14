@@ -28,7 +28,7 @@ const DEFAULT_POOL_RATE = 0.04; // 4% of every investment held as a default prot
 
 // GTBank settlement default. Beneficiary accounts collected at signup are
 // GTBank NUBANs; this code maps to GTBank for /payout/transfer.
-const SETTLEMENT_BANK_CODE = '058';
+const SETTLEMENT_BANK_CODE = '000013';
 
 @Injectable()
 export class InvestmentsService {

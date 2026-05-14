@@ -458,7 +458,7 @@ export class SweepService {
     // Bank code for the GTBank settlement default — businesses register their
     // GTBank beneficiary at signup. For non-GTBank destinations, the business
     // should withdraw using the explicit payouts endpoint instead.
-    const bankCode = '058';
+    const bankCode = '000013';
 
     let transferStatus = 'failed';
     try {

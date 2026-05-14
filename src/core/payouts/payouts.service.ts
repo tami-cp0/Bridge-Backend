@@ -63,7 +63,7 @@ export class PayoutsService {
       );
     }
 
-    const bankCode = '058'; // GTBank is the static default for Bridge
+    const bankCode = '000013'; // GTBank NIP code is required for Squad payouts
     const accountNumber = dbUser.beneficiaryAccount;
     const remark = 'Bridge Withdrawal';
 
