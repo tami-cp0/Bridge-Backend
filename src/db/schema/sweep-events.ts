@@ -20,6 +20,7 @@ export const sweepEvents = pgTable('sweep_events', {
   }).notNull(),
   sweepPercent: numeric('sweep_percent', { precision: 5, scale: 2 }).notNull(),
   sweepAmount: bigint('sweep_amount', { mode: 'number' }).notNull(),
+  serviceFee: bigint('service_fee', { mode: 'number' }).default(0).notNull(),
   netAmountRetained: bigint('net_amount_retained', {
     mode: 'number',
   }).notNull(),

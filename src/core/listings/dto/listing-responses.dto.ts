@@ -183,6 +183,9 @@ export class SweepEventResponseDto {
   @ApiProperty({ example: 85000, description: 'Amount swept in kobo' })
   sweepAmount: number;
 
+  @ApiProperty({ example: 10000, description: '1% Platform service fee in kobo' })
+  serviceFee: number;
+
   @ApiProperty({
     example: 915000,
     description: 'Amount retained by business in kobo',

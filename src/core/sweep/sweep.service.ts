@@ -229,6 +229,7 @@ export class SweepService {
         incomingPaymentAmount: incomingAmount,
         sweepPercent: String(sweepPercent),
         sweepAmount,
+        serviceFee: platformFee,
         netAmountRetained: incomingAmount - sweepAmount - platformFee,
         squadWebhookReference: transactionRef,
         processedAt: new Date(),
@@ -586,6 +587,7 @@ export class SweepService {
         incomingPaymentAmount: remaining,
         sweepPercent: '100.00',
         sweepAmount: remaining,
+        serviceFee: platformFee,
         netAmountRetained: 0,
         squadWebhookReference: repayRef,
         isManualRepayment: true,
@@ -618,7 +620,7 @@ export class SweepService {
 
     return {
       repaid: remaining,
-      fee: platformFee,
+      serviceFee: platformFee,
       message: `₦${(remaining / 100).toLocaleString('en-NG')} repaid (₦${(platformFee / 100).toLocaleString('en-NG')} service fee). Your listing is now completed.`,
     };
   }
