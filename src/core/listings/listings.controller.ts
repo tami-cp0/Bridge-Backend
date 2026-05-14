@@ -1,4 +1,4 @@
-﻿import {
+import {
   Controller,
   Get,
   Post,
@@ -27,6 +27,7 @@ import {
   CalculateTermsResponseDto,
 } from './dto/listing-responses.dto';
 import { SectorEnum } from '../../common/enums/sector.enum';
+import { OptionalJwtAuthGuard } from '../../common/guards/optional-jwt-auth.guard';
 
 @ApiTags('listings')
 @Controller('listings')
@@ -34,6 +35,8 @@ export class ListingsController {
   constructor(private listingsService: ListingsService) {}
 
   @Get()
+  @UseGuards(OptionalJwtAuthGuard)
+  @ApiBearerAuth('JWT')
   @ApiOperation({
     summary: 'Browse all active listings with optional filters and sorting',
   })
@@ -112,6 +115,7 @@ export class ListingsController {
     },
   })
   getListings(
+    @CurrentUser() user: JwtPayload | null,
     @Query('sector') sector?: string,
     @Query('tier') tier?: string,
     @Query('standing') standing?: string,
@@ -123,18 +127,21 @@ export class ListingsController {
     @Query('page') page?: string,
     @Query('limit') limit?: string,
   ) {
-    return this.listingsService.getListings({
-      sector,
-      tier: tier ? Number(tier) : undefined,
-      standing,
-      minReturn: minReturn ? Number(minReturn) : undefined,
-      maxReturn: maxReturn ? Number(maxReturn) : undefined,
-      minCapital: minCapital ? Number(minCapital) : undefined,
-      maxCapital: maxCapital ? Number(maxCapital) : undefined,
-      sort,
-      page: page ? Number(page) : 1,
-      limit: limit ? Number(limit) : 20,
-    });
+    return this.listingsService.getListings(
+      {
+        sector,
+        tier: tier ? Number(tier) : undefined,
+        standing,
+        minReturn: minReturn ? Number(minReturn) : undefined,
+        maxReturn: maxReturn ? Number(maxReturn) : undefined,
+        minCapital: minCapital ? Number(minCapital) : undefined,
+        maxCapital: maxCapital ? Number(maxCapital) : undefined,
+        sort,
+        page: page ? Number(page) : 1,
+        limit: limit ? Number(limit) : 20,
+      },
+      user?.userId,
+    );
   }
 
   @Get('matched')
@@ -177,6 +184,8 @@ export class ListingsController {
   }
 
   @Get(':id')
+  @UseGuards(OptionalJwtAuthGuard)
+  @ApiBearerAuth('JWT')
   @ApiParam({ name: 'id', description: 'Listing UUID' })
   @ApiOperation({
     summary:
@@ -206,8 +215,8 @@ export class ListingsController {
     },
   })
   @ApiResponse({ status: 404, description: 'Listing not found' })
-  getListingById(@Param('id') id: string) {
-    return this.listingsService.getListingById(id);
+  getListingById(@Param('id') id: string, @CurrentUser() user: JwtPayload | null) {
+    return this.listingsService.getListingById(id, user?.userId);
   }
 
   @Post('calculate-terms')

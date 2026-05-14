@@ -91,6 +91,19 @@ export class InvestmentsService {
 
     const ref = `inv-${uuidv4()}`;
 
+    const [existingInvestment] = await db
+      .select({ id: investments.id })
+      .from(investments)
+      .where(
+        and(
+          eq(investments.listingId, dto.listingId),
+          eq(investments.investorId, investorUserId),
+        )
+      )
+      .limit(1);
+
+    const isFirstTimeInvestor = !existingInvestment;
+
     const [investment] = await db
       .insert(investments)
       .values({
@@ -131,7 +144,7 @@ export class InvestmentsService {
     const oldTotalCommitted = listing.totalCommitted ?? 0;
     const capitalRequested = listing.capitalRequested ?? 0;
     const newTotalCommitted = oldTotalCommitted + dto.amountCommitted;
-    const newInvestorCount = (listing.investorCount ?? 0) + 1;
+    const newInvestorCount = isFirstTimeInvestor ? (listing.investorCount ?? 0) + 1 : (listing.investorCount ?? 0);
 
     await db
       .update(listings)

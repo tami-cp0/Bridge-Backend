@@ -12,8 +12,9 @@ import {
   tranches,
   investorProfiles,
   users,
+  investments,
 } from '../../db/schema';
-import { eq, and, or, gte, lte, asc, desc, SQL } from 'drizzle-orm';
+import { eq, and, or, gte, lte, asc, desc, SQL, sql, getTableColumns } from 'drizzle-orm';
 import { AiProfileService } from './ai-profile.service';
 import { CreateListingDto } from './dto/create-listing.dto';
 
@@ -322,18 +323,21 @@ export class ListingsService {
     return listing;
   }
 
-  async getListings(filters: {
-    sector?: string;
-    tier?: number;
-    standing?: string;
-    minReturn?: number;
-    maxReturn?: number;
-    minCapital?: number;
-    maxCapital?: number;
-    sort?: string;
-    page?: number;
-    limit?: number;
-  }) {
+  async getListings(
+    filters: {
+      sector?: string;
+      tier?: number;
+      standing?: string;
+      minReturn?: number;
+      maxReturn?: number;
+      minCapital?: number;
+      maxCapital?: number;
+      sort?: string;
+      page?: number;
+      limit?: number;
+    },
+    requestingUserId?: string,
+  ) {
     const page = filters.page ?? 1;
     const limit = filters.limit ?? 20;
     const offset = (page - 1) * limit;
@@ -375,7 +379,18 @@ export class ListingsService {
       )[filters.sort ?? ''] ?? desc(listings.createdAt);
 
     return db
-      .select()
+      .select({
+        listings: getTableColumns(listings),
+        business_profiles: getTableColumns(businessProfiles),
+        bridge_ratings: getTableColumns(bridgeRatings),
+        isInvested: requestingUserId
+          ? sql<boolean>`CASE WHEN EXISTS (
+              SELECT 1 FROM ${investments} 
+              WHERE ${investments.listingId} = ${listings.id} 
+              AND ${investments.investorId} = ${requestingUserId}
+            ) THEN true ELSE false END`
+          : sql<boolean>`false`,
+      })
       .from(listings)
       .leftJoin(businessProfiles, eq(businessProfiles.id, listings.businessId))
       .leftJoin(
@@ -395,7 +410,16 @@ export class ListingsService {
       .where(eq(investorProfiles.userId, userId));
 
     const activeListings = await db
-      .select()
+      .select({
+        listings: getTableColumns(listings),
+        business_profiles: getTableColumns(businessProfiles),
+        bridge_ratings: getTableColumns(bridgeRatings),
+        isInvested: sql<boolean>`CASE WHEN EXISTS (
+          SELECT 1 FROM ${investments} 
+          WHERE ${investments.listingId} = ${listings.id} 
+          AND ${investments.investorId} = ${userId}
+        ) THEN true ELSE false END`,
+      })
       .from(listings)
       .leftJoin(businessProfiles, eq(businessProfiles.id, listings.businessId))
       .leftJoin(
@@ -456,7 +480,7 @@ export class ListingsService {
     return { listings: scored, preferencesSet: true };
   }
 
-  async getListingById(id: string) {
+  async getListingById(id: string, requestingUserId?: string) {
     const [result] = await db
       .select()
       .from(listings)
@@ -469,7 +493,7 @@ export class ListingsService {
 
     if (!result) throw new NotFoundException('Listing not found');
 
-    const [listingTranches, busUser] = await Promise.all([
+    const [listingTranches, busUser, existingInv] = await Promise.all([
       db.select().from(tranches).where(eq(tranches.listingId, id)),
       result.business_profiles?.userId
         ? db
@@ -480,6 +504,19 @@ export class ListingsService {
             .where(eq(users.id, result.business_profiles.userId))
             .then(([u]) => u ?? null)
         : Promise.resolve(null),
+      requestingUserId
+        ? db
+            .select({ id: investments.id })
+            .from(investments)
+            .where(
+              and(
+                eq(investments.listingId, id),
+                eq(investments.investorId, requestingUserId),
+              ),
+            )
+            .limit(1)
+            .then(([i]) => i ?? null)
+        : Promise.resolve(null),
     ]);
 
     return {
@@ -487,6 +524,7 @@ export class ListingsService {
       tranches: listingTranches,
       businessSquadVirtualAccountNumber:
         busUser?.squadVirtualAccountNumber ?? null,
+      isInvested: !!existingInv,
     };
   }
 }

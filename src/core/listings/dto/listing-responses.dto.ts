@@ -154,6 +154,9 @@ export class ListingResponseDto {
   @ApiProperty({ example: 3 })
   investorCount: number;
 
+  @ApiProperty({ example: false, description: 'True if the current user has invested in this deal' })
+  isInvested?: boolean;
+
   @ApiProperty()
   createdAt: Date;
 
