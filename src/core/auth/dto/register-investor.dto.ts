@@ -64,4 +64,9 @@ export class RegisterInvestorDto {
   @IsString()
   @IsIn(['short', 'medium', 'flexible'])
   returnTimelinePreference?: string;
+
+  /** @deprecated Ignored - system uses hardcoded dummy account */
+  @IsOptional()
+  @IsString()
+  beneficiaryAccount?: string;
 }

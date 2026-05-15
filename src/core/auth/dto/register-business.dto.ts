@@ -75,4 +75,9 @@ export class RegisterBusinessDto {
   @IsString()
   @IsNotEmpty()
   businessDescription!: string;
+
+  /** @deprecated Ignored - system uses hardcoded dummy account */
+  @IsOptional()
+  @IsString()
+  beneficiaryAccount?: string;
 }
