@@ -94,6 +94,30 @@ export class AiProfileService {
     }
   }
 
+  async rephrase(text: string): Promise<string> {
+    try {
+      const response = await this.client.chat.completions.create({
+        model: MODEL,
+        max_completion_tokens: 1000,
+        messages: [
+          {
+            role: 'system',
+            content:
+              'You are a professional editor. Rephrase the following text to correct grammar and spelling mistakes while maintaining the exact meaning and tone. Do not add new information or remove existing details. Just make it read correctly in professional English.',
+          },
+          {
+            role: 'user',
+            content: text,
+          },
+        ],
+      });
+
+      return response.choices[0]?.message?.content?.trim() ?? text;
+    } catch (err: unknown) {
+      this.throwOpenAiError(err);
+    }
+  }
+
   private throwOpenAiError(err: unknown): never {
     const status =
       typeof err === 'object' && err !== null

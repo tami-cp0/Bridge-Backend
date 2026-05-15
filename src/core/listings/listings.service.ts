@@ -255,6 +255,11 @@ export class ListingsService {
       dto.preferredRepaymentMonths,
     );
 
+    const [useOfFunds, expectedImpact] = await Promise.all([
+      this.aiProfileService.rephrase(dto.useOfFunds),
+      this.aiProfileService.rephrase(dto.expectedImpact),
+    ]);
+
     const [user] = await db.select().from(users).where(eq(users.id, userId));
     // Generate the AI narrative using OpenAI” this is what investors read
     const aiProfile = await this.aiProfileService.generateProfile({
@@ -272,8 +277,8 @@ export class ListingsService {
       cacRegistrationNumber: bp.cacRegistrationNumber,
       customerConfirmationCount: 0,
       capitalRequestedNaira: dto.capitalRequested,
-      useOfFunds: dto.useOfFunds,
-      expectedImpact: dto.expectedImpact,
+      useOfFunds,
+      expectedImpact,
       revenueSharePercent: terms.revenueSharePercent,
       totalReturnPercent: terms.totalReturnPercent,
       totalReturnAmountNaira: terms.totalReturnAmount,
@@ -287,8 +292,8 @@ export class ListingsService {
       .values({
         businessId: bp.id,
         capitalRequested: dto.capitalRequested,
-        useOfFunds: dto.useOfFunds,
-        expectedImpact: dto.expectedImpact,
+        useOfFunds,
+        expectedImpact,
         revenueSharePercent: String(terms.revenueSharePercent),
         totalReturnAmount: terms.totalReturnAmount,
         totalReturnPercent: String(terms.totalReturnPercent),
