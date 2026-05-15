@@ -280,6 +280,8 @@ export class ListingsService {
       targetRepaymentMonths: terms.targetRepaymentMonths,
     });
 
+    const generatedProfile = await this.aiProfileService.generateSummary(aiProfile);
+
     const [listing] = await db
       .insert(listings)
       .values({
@@ -292,6 +294,7 @@ export class ListingsService {
         totalReturnPercent: String(terms.totalReturnPercent),
         targetRepaymentMonths: terms.targetRepaymentMonths,
         aiProfile,
+        generatedProfile,
         status: 'active',
       })
       .returning();

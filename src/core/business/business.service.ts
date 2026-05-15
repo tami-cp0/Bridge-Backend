@@ -16,6 +16,7 @@ import {
   listings,
   sweepEvents,
   notifications,
+  tranches,
 } from '../../db/schema';
 import { eq, and, or, inArray, desc, ne } from 'drizzle-orm';
 
@@ -209,7 +210,14 @@ export class BusinessService {
         ),
       );
 
-    return listing ?? null;
+    if (!listing) return null;
+
+    const listingTranches = await db
+      .select()
+      .from(tranches)
+      .where(eq(tranches.listingId, listing.id));
+
+    return { ...listing, tranches: listingTranches };
   }
 
   async getActivity(userId: string) {
