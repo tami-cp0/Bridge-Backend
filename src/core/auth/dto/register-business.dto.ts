@@ -8,6 +8,7 @@ import {
   IsEnum,
   Length,
   Matches,
+  IsOptional,
 } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 import { SectorEnum } from '../../../common/enums/sector.enum';
