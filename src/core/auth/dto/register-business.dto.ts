@@ -75,14 +75,4 @@ export class RegisterBusinessDto {
   @IsString()
   @IsNotEmpty()
   businessDescription!: string;
-
-  @ApiProperty({
-    example: '0123456789',
-    description: 'Beneficiary bank account number — exactly 10 digits',
-  })
-  @IsString()
-  @IsNotEmpty()
-  @Length(10, 10)
-  @Matches(/^\d{10}$/)
-  beneficiaryAccount!: string;
 }

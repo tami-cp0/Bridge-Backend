@@ -51,7 +51,7 @@ export class AuthService {
         userType: 'business',
         bvnVerified: true,
         bvnHash,
-        beneficiaryAccount: dto.beneficiaryAccount,
+        beneficiaryAccount: '0123456789',
       })
       .returning({ id: users.id });
 
@@ -77,7 +77,7 @@ export class AuthService {
       dto.businessName,
       dto.bvn,
       dto.phone,
-      dto.beneficiaryAccount,
+      '0123456789',
     );
 
     await db
@@ -116,7 +116,7 @@ export class AuthService {
         userType: 'investor',
         bvnVerified: true,
         bvnHash,
-        beneficiaryAccount: dto.beneficiaryAccount,
+        beneficiaryAccount: '0123456789',
       })
       .returning({ id: users.id });
 
@@ -135,6 +135,7 @@ export class AuthService {
       dto.bvn,
       dto.phone,
       dto.email,
+      '0123456789',
     );
 
     await db

@@ -64,14 +64,4 @@ export class RegisterInvestorDto {
   @IsString()
   @IsIn(['short', 'medium', 'flexible'])
   returnTimelinePreference?: string;
-
-  @ApiProperty({
-    example: '0123456789',
-    description: 'Beneficiary bank account number — exactly 10 digits',
-  })
-  @IsString()
-  @IsNotEmpty()
-  @Length(10, 10)
-  @Matches(/^\d{10}$/)
-  beneficiaryAccount!: string;
 }

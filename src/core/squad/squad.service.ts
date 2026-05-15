@@ -53,15 +53,15 @@ export class SquadService {
     });
   }
 
-  // Investor VA. We deliberately omit beneficiary_account: that field triggers
-  // Squad's instant settlement to a GTBank account, which would empty our escrow
-  // on every deposit. We want funds to land and stay in the merchant wallet.
+  // Investor VA. We provide beneficiary_account as it is now required by Squad.
+  // Note: This may trigger auto-settlement depending on merchant profile.
   async createVirtualAccount(
     userId: string,
     fullName: string,
     bvn: string,
     phone: string,
     email: string,
+    beneficiaryAccount: string,
   ): Promise<{ virtualAccountNumber: string; reference: string }> {
     const nameParts = fullName.trim().split(' ');
     const firstName = nameParts[0];
@@ -85,6 +85,7 @@ export class SquadService {
         gender: '1',
         address: 'Nigeria',
         customer_identifier: userId,
+        beneficiary_account: beneficiaryAccount,
       });
 
       const data = unwrapSquadData(response.data);
