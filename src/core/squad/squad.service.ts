@@ -354,6 +354,7 @@ export class SquadService {
   }
 
   private throwSquadError(err: unknown, fallbackMessage: string): never {
+    console.log('FULL SQUAD ERROR:', err);
     const status = axios.isAxiosError(err) ? err.response?.status : undefined;
     const data = axios.isAxiosError(err) ? err.response?.data : undefined;
     const extracted = this.extractSquadMessage(data);
@@ -363,7 +364,6 @@ export class SquadService {
       throw new UnauthorizedException('Payment provider unauthorized');
     }
     if (status === 403) {
-      console.log(err)
       throw new ForbiddenException('Payment provider forbidden');
     }
     if (status === 404) {
