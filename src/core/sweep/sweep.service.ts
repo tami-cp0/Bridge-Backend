@@ -50,7 +50,8 @@ export class SweepService {
       !!nestedData.virtual_account_number;
 
     const isSuccessEvent =
-      eventType === 'charge_successful' || eventType === 'charge.success';
+      eventType === 'charge_successful' || eventType === 'charge.success' ||
+      payload.transaction_indicator === 'C';
 
     if (isSuccessEvent && hasVaIndicator) {
       await this.handleVaPaymentSuccessful(payload);
