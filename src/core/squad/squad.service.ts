@@ -363,6 +363,7 @@ export class SquadService {
       throw new UnauthorizedException('Payment provider unauthorized');
     }
     if (status === 403) {
+      console.log(err)
       throw new ForbiddenException('Payment provider forbidden');
     }
     if (status === 404) {
