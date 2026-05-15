@@ -70,6 +70,30 @@ export class AiProfileService {
     }
   }
 
+  async generateSummary(narrative: string): Promise<string> {
+    try {
+      const response = await this.client.chat.completions.create({
+        model: MODEL,
+        max_completion_tokens: 150,
+        messages: [
+          {
+            role: 'system',
+            content:
+              'You are an expert financial copywriter. Summarize the following business investment profile into a maximum of two compelling sentences. Focus on what the business does, what they need the funds for, and the expected impact. Keep it professional and punchy.',
+          },
+          {
+            role: 'user',
+            content: narrative,
+          },
+        ],
+      });
+
+      return response.choices[0]?.message?.content?.trim() ?? '';
+    } catch (err: unknown) {
+      this.throwOpenAiError(err);
+    }
+  }
+
   private throwOpenAiError(err: unknown): never {
     const status =
       typeof err === 'object' && err !== null

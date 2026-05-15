@@ -136,6 +136,9 @@ export class ListingResponseDto {
   @ApiProperty({ description: 'AI-generated investor-facing narrative' })
   aiProfile: string;
 
+  @ApiProperty({ description: 'Short AI-generated 2-sentence summary' })
+  generatedProfile: string;
+
   @ApiProperty({ enum: ['active', 'funded', 'completed', 'defaulted'] })
   status: string;
 
@@ -156,6 +159,9 @@ export class ListingResponseDto {
 
   @ApiProperty({ example: false, description: 'True if the current user has invested in this deal' })
   isInvested?: boolean;
+
+  @ApiPropertyOptional({ type: TrancheResponseDto, isArray: true })
+  tranches?: TrancheResponseDto[];
 
   @ApiProperty()
   createdAt: Date;

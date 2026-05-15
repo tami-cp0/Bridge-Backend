@@ -32,6 +32,7 @@ export const listings = pgTable('listings', {
   }).notNull(),
   targetRepaymentMonths: integer('target_repayment_months').notNull(),
   aiProfile: text('ai_profile').notNull(),
+  generatedProfile: text('generated_profile'),
   status: listingStatusEnum('status').default('active'),
   totalCommitted: bigint('total_committed', { mode: 'number' }).default(0),
   totalSwept: bigint('total_swept', { mode: 'number' }).default(0),
