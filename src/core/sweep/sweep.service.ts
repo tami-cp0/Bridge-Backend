@@ -516,14 +516,15 @@ export class SweepService {
       squadTransactionReference: `release-${ref}`,
     });
 
-    await this.ledgerService.debit({
-      userId: businessUserId,
-      amount: tranche.amount,
-      purpose: 'tranche_payout',
-      referenceId: tranche.id,
-      referenceType: 'tranche',
-      squadTransactionReference: ref,
-    });
+    // to simulate it reaching the settlement bank account itself
+    // await this.ledgerService.debit({
+    //   userId: businessUserId,
+    //   amount: tranche.amount,
+    //   purpose: 'tranche_payout',
+    //   referenceId: tranche.id,
+    //   referenceType: 'tranche',
+    //   squadTransactionReference: ref,
+    // });
 
     await db.insert(notifications).values({
       userId: businessUserId,
